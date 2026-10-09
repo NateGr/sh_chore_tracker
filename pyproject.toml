@@ -1,0 +1,14 @@
+[tool.smarthass]
+integration-ready = false
+
+[tool.ruff]
+target-version = "py313"
+line-length = 100
+extend-exclude = ["config"]
+
+[tool.ruff.lint]
+select = ["E4", "E7", "E9", "F", "I"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra"

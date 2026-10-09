@@ -1,0 +1,36 @@
+name: Bug report
+description: Report a reproducible integration problem
+title: "[Bug]: "
+body:
+  - type: input
+    id: homeassistant
+    attributes:
+      label: Home Assistant version
+    validations:
+      required: true
+  - type: input
+    id: integration
+    attributes:
+      label: SmartHass Chore Tracker version
+    validations:
+      required: true
+  - type: dropdown
+    id: installation
+    attributes:
+      label: Installation method
+      options: [HACS, Manual]
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Steps to reproduce
+      description: Include expected and actual behavior.
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant redacted logs
+      description: Remove tokens, personal details, and private URLs. Do not attach backups or .storage files.
+      render: text

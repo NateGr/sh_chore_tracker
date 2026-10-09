@@ -1,0 +1,179 @@
+name: Release
+on:
+  workflow_dispatch:
+    inputs:
+      bump:
+        description: Version increment
+        type: choice
+        options: [patch, minor, major]
+        default: patch
+      version:
+        description: Optional explicit new version (X.Y.Z)
+        type: string
+      dry-run:
+        description: Validate without pushing or publishing
+        type: boolean
+        default: false
+      recover-version:
+        description: Recover publication of an existing release tag (X.Y.Z; no bump)
+        type: string
+permissions:
+  contents: read
+concurrency:
+  group: release
+  cancel-in-progress: false
+jobs:
+  prepare:
+    name: Validate and tag
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    environment: release
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      candidate: ${{ steps.candidate.outputs.sha }}
+    steps:
+      - name: Check release context
+        env:
+          RELEASE_REF: ${{ github.ref }}
+          REPOSITORY: ${{ github.repository }}
+          PRIVATE_REPOSITORY: ${{ github.event.repository.private }}
+          DRY_RUN: ${{ inputs.dry-run }}
+          VERSION: ${{ inputs.version }}
+          RECOVER_VERSION: ${{ inputs.recover-version }}
+        run: |
+          [[ "$RELEASE_REF" == "refs/heads/main" ]] || { echo "Release must run from main."; exit 1; }
+          [[ "$REPOSITORY" == "NateGr/sh_chore_tracker" ]] || { echo "Release is restricted to the upstream repository."; exit 1; }
+          if [[ "$PRIVATE_REPOSITORY" == "true" && "$DRY_RUN" != "true" ]]; then
+            echo "Production releases require a public repository and HACS validation."
+            exit 1
+          fi
+          if [[ -n "$VERSION" && -n "$RECOVER_VERSION" ]]; then
+            echo "Choose a new version or recovery, not both."
+            exit 1
+          fi
+      - name: Check out frozen main commit
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Set up release Python
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: "3.13"
+      - name: Require imported integration
+        run: python scripts/release.py check --require-integration
+      - name: Freeze base commit
+        id: base
+        run: echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+      - name: Select version or recover existing tag
+        id: version
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          BUMP: ${{ inputs.bump }}
+          VERSION: ${{ inputs.version }}
+          RECOVER_VERSION: ${{ inputs.recover-version }}
+        run: |
+          if [[ -n "$RECOVER_VERSION" ]]; then
+            python scripts/release.py recover --version "$RECOVER_VERSION"
+          else
+            gh api "repos/$GH_REPO/releases?per_page=100" --paginate --slurp > "$RUNNER_TEMP/releases.json"
+            python scripts/release.py prepare --bump "$BUMP" --version "$VERSION" --releases "$RUNNER_TEMP/releases.json"
+          fi
+      - name: Create local release commit or check out recovery commit
+        id: candidate
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+          RECOVER_VERSION: ${{ inputs.recover-version }}
+          RECOVERY_COMMIT: ${{ steps.version.outputs.candidate }}
+        run: |
+          if [[ -n "$RECOVER_VERSION" ]]; then
+            git checkout --detach "$RECOVERY_COMMIT"
+          else
+            git config user.name "smarthass-release[bot]"
+            git config user.email "smarthass-release[bot]@users.noreply.github.com"
+            git add custom_components/chore_tracker/manifest.json
+            git -c commit.gpgsign=false commit -m "Release v$VERSION" -m "SmartHass-Release: $VERSION"
+          fi
+          echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+      - name: Validate exact release candidate
+        uses: ./.github/actions/validate
+        with:
+          require-integration: "true"
+      - name: Verify candidate was not modified by validation
+        env:
+          CANDIDATE: ${{ steps.candidate.outputs.sha }}
+        run: |
+          [[ "$(git rev-parse HEAD)" == "$CANDIDATE" ]] || { echo "Validation changed the candidate commit."; exit 1; }
+          git diff --exit-code
+          git diff --cached --exit-code
+          [[ -z "$(git ls-files --others --exclude-standard)" ]] || { echo "Unexpected untracked files after validation."; exit 1; }
+      - name: Create narrowly scoped App token
+        if: ${{ !inputs.dry-run && inputs.recover-version == '' }}
+        id: app
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3
+        with:
+          client-id: ${{ vars.RELEASE_APP_CLIENT_ID }}
+          private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+          repositories: sh_chore_tracker
+          permission-contents: write
+      - name: Push validated commit and tag atomically
+        if: ${{ !inputs.dry-run && inputs.recover-version == '' }}
+        env:
+          APP_TOKEN: ${{ steps.app.outputs.token }}
+          BASE_COMMIT: ${{ steps.base.outputs.sha }}
+          CANDIDATE: ${{ steps.candidate.outputs.sha }}
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          git fetch origin refs/heads/main:refs/remotes/origin/main --tags
+          [[ "$(git rev-parse origin/main)" == "$BASE_COMMIT" ]] || { echo "main advanced during validation; rerun Release."; exit 1; }
+          [[ "$(git rev-parse HEAD^)" == "$BASE_COMMIT" ]] || { echo "Candidate is not based on the frozen main commit."; exit 1; }
+          [[ "$(git diff-tree --no-commit-id --name-only -r HEAD)" == "custom_components/chore_tracker/manifest.json" ]] || { echo "Unexpected release commit changes."; exit 1; }
+          git tag -a "v$VERSION" "$CANDIDATE" -m "Release v$VERSION"
+          authorization=$(printf 'x-access-token:%s' "$APP_TOKEN" | base64 -w0)
+          echo "::add-mask::$authorization"
+          git -c credential.helper= -c "http.https://github.com/.extraheader=AUTHORIZATION: basic $authorization" push --atomic origin "HEAD:refs/heads/main" "refs/tags/v$VERSION"
+      - name: Report validated candidate
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+          CANDIDATE: ${{ steps.candidate.outputs.sha }}
+          DRY_RUN: ${{ inputs.dry-run }}
+        run: |
+          {
+            echo "Version: v$VERSION"
+            echo "Validated commit: $CANDIDATE"
+            echo "Dry run: $DRY_RUN"
+          } >> "$GITHUB_STEP_SUMMARY"
+  publish:
+    name: Publish
+    needs: prepare
+    if: ${{ !inputs.dry-run }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: release
+    permissions:
+      contents: write
+    steps:
+      - name: Verify tag and publish release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          VERSION: ${{ needs.prepare.outputs.version }}
+          CANDIDATE: ${{ needs.prepare.outputs.candidate }}
+        run: |
+          tag="v$VERSION"
+          tag_object=$(gh api "repos/$GH_REPO/git/ref/tags/$tag" --jq '.object.sha')
+          tag_commit=$(gh api "repos/$GH_REPO/git/tags/$tag_object" --jq '.object.sha')
+          [[ "$tag_commit" == "$CANDIDATE" ]] || { echo "Tag no longer matches the validated candidate."; exit 1; }
+          if gh release view "$tag" --json isDraft,isPrerelease,url > "$RUNNER_TEMP/release.json"; then
+            if jq -e '.isDraft or .isPrerelease' "$RUNNER_TEMP/release.json" > /dev/null; then
+              echo "An existing draft or prerelease conflicts with this stable release."
+              exit 1
+            fi
+            url=$(jq -r '.url' "$RUNNER_TEMP/release.json")
+          else
+            url=$(gh release create "$tag" --verify-tag --target "$CANDIDATE" --title "$tag" --generate-notes --latest)
+          fi
+          echo "Published release: $url" >> "$GITHUB_STEP_SUMMARY"
