@@ -2,24 +2,31 @@
 
 ## Current State
 
-The repository scaffold, release helper, and helper tests are ready. Integration
-code, its tests, a verified HA dependency set, and branding are not yet imported.
-`tool.smarthass.integration-ready` in `pyproject.toml` is deliberately `false`.
-Releases, including dry runs, refuse to proceed until the import is complete.
+The repository scaffold and release helper are ready. The hub integration package,
+tests, and branding have been imported and adapted to the `chore_tracker` domain.
+The Home Assistant test dependency, supported-version baseline, migration behavior,
+and branding license still need verification. `tool.smarthass.integration-ready`
+in `pyproject.toml` remains deliberately `false`; releases, including dry runs,
+refuse to proceed until validation is complete.
+
+The source repository's docs, user stories, and backlog snapshots are preserved
+in the [legacy archive](legacy/README.md). They span several architectures and
+should be triaged against the current hub code before being treated as active work.
 
 ## Import Checklist
 
-1. Copy `custom_components/chore_tracker`, relevant tests/fixtures, required
-   runtime assets, useful user docs, and attribution from the old repository.
-   Do not copy its `.git`, development HA configuration, editor tasks, archived
-   planning documents, agent tooling, or release automation.
+1. Audit the imported `custom_components/chore_tracker`, tests, runtime assets,
+  useful user docs, and attribution. Do not copy the source `.git`, development
+  HA configuration, editor tasks, agent/tooling directories, or release
+  automation into the operational tree. Historical docs and backlogs belong in
+  `docs/legacy/` and are not active release requirements.
 2. Preserve `chore_tracker`, entity unique IDs, config-entry identity/version,
    service names, and storage keys. Update the manifest display name to
    `SmartHass Chore Tracker`, documentation to
    `https://github.com/NateGr/sh_chore_tracker`, issue tracker to that URL plus
    `/issues`, and include `@NateGr` in codeowners. Retain the actual current
    version and required runtime metadata.
-3. Run imported tests before changing behavior. Select a compatible Python,
+3. Review imported tests before changing behavior. Select a compatible Python,
    Home Assistant, and `pytest-homeassistant-custom-component` combination;
    add a verified exact plugin pin to `requirements_test.txt`. Adjust pytest and
    coverage pins together if needed. Enable only the asyncio/HA fixtures the

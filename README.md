@@ -4,7 +4,8 @@ A Home Assistant custom integration for tracking household chores.
 
 This repository is being prepared as the public successor to
 [ha-chore-tracker](https://github.com/NateGr/ha-chore-tracker). The integration
-code has not been imported yet. There is no installable release here currently.
+core and tests have been imported, but Home Assistant compatibility and migration
+validation are still pending. There is no installable release here currently.
 
 ## Installation
 
@@ -24,7 +25,7 @@ Download a published release's source archive from
 `custom_components/chore_tracker` into your Home Assistant configuration's
 `custom_components` directory and restart Home Assistant.
 
-The minimum supported Home Assistant version will be published after the imported
+The minimum supported Home Assistant version will be published after the hub
 integration has been tested. Repository tooling currently uses Python 3.13 in CI;
 this is not a Home Assistant compatibility claim.
 
@@ -39,6 +40,8 @@ retired. Back up Home Assistant before switching repositories.
 
 - [Contributing](CONTRIBUTING.md): local setup, checks, and pull requests.
 - [Maintainer guide](docs/maintainer.md): releases, GitHub setup, and migration.
+- [Configuration reference](docs/configuration-reference.md): hub and chore setup.
+- [Service reference](docs/service-reference.md): chore actions and hub services.
 - [Issues](https://github.com/NateGr/sh_chore_tracker/issues): bugs and suggestions.
 - [Security policy](.github/SECURITY.md): privately report vulnerabilities.
 

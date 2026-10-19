@@ -7,9 +7,11 @@ required from contributors.
 
 ## Local Setup
 
-Use Python 3.13 to match CI. Only repository tooling is available until the
-integration and its tests are imported. A running Home Assistant server is not
-required to run automated tests.
+Use Python 3.13 to match CI. The integration and its tests are imported, but the
+Home Assistant test dependency and supported-version baseline are not yet
+verified. A running Home Assistant server is not required for scaffold checks;
+integration tests should use Linux, WSL2, or another supported HA development
+environment.
 
 Windows PowerShell:
 
@@ -50,8 +52,8 @@ before committing. Once integration validation is enabled, add
 
 CI also runs hassfest on imported integration files and HACS validation when the
 repository is public. A green scaffold check does not mean the integration has
-been tested. Partial source imports deliberately fail until the maintainer
-completes the import checklist.
+been tested. The readiness gate remains disabled until the maintainer completes
+the import and validation checklist.
 
 ## Testing In Home Assistant
 
