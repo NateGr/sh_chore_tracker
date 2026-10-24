@@ -200,7 +200,7 @@ condition:
 
 ### `integration_domain` Attribute
 
-Every chore entity exposes `integration_domain: chore_tracker`. Use this for reliable entity filtering that survives entity renames.
+Every chore entity exposes `integration_domain: sh_chore_tracker`. Use this for reliable entity filtering that survives entity renames.
 
 ### Recommended auto-entities Filter
 
@@ -211,7 +211,7 @@ card:
 filter:
   include:
     - attribute:
-        integration_domain: chore_tracker
+        integration_domain: sh_chore_tracker
   sort:
     method: state
     numeric: true
@@ -228,7 +228,7 @@ card:
 filter:
   include:
     - attribute:
-        integration_domain: chore_tracker
+        integration_domain: sh_chore_tracker
       state: < 0
   sort:
     method: state

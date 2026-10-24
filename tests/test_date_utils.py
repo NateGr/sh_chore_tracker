@@ -4,7 +4,7 @@ from datetime import date, datetime
 
 import pytest
 
-from custom_components.chore_tracker.date_utils import (
+from custom_components.sh_chore_tracker.date_utils import (
     WEEKDAY_MAP,
     DateCalculator,
     coerce_date,

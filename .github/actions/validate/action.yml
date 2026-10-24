@@ -44,7 +44,7 @@ runs:
       run: |
         arguments=(--cov=scripts --cov-report=term-missing --cov-report=xml)
         if [[ "$INTEGRATION_READY" == "true" ]]; then
-          arguments+=(--cov=custom_components/chore_tracker)
+          arguments+=(--cov=custom_components/sh_chore_tracker)
         fi
         python -m pytest tests/ "${arguments[@]}"
     - name: Validate Home Assistant metadata

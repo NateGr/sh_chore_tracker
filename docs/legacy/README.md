@@ -36,7 +36,7 @@ still mentions that workflow and should be read as historical context only.
 - The May 2026 runtime and merge-readiness reports refer to an earlier branch and
   predate the current hub implementation. They do not validate this import.
 - Source docs describe multiple architectures. The current destination uses the
-  hub package under the preserved `chore_tracker` domain.
+  hub package under the preserved `sh_chore_tracker` domain.
 
 Use the current [maintainer guide](../maintainer.md) for import, compatibility,
 migration, and release requirements. The next planning task is to triage these

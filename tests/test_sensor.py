@@ -5,12 +5,12 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from custom_components.chore_tracker.const import (
+from custom_components.sh_chore_tracker.const import (
     DOMAIN,
     SUBENTRY_TYPE_CHORE,
     SUBENTRY_TYPE_SUMMARY,
 )
-from custom_components.chore_tracker.sensor import (
+from custom_components.sh_chore_tracker.sensor import (
     ChoreEntity,
     HubNextDueSensor,
     HubOverdueCountSensor,
@@ -51,7 +51,7 @@ def _make_entity(next_due_date: datetime, status: str = "pending") -> ChoreEntit
     subentry.data = chore_data["config"]
 
     with patch(
-        "custom_components.chore_tracker.sensor.dr.async_get_device_id_by_identifier",
+        "custom_components.sh_chore_tracker.sensor.dr.async_get_device_id_by_identifier",
         return_value="hub_device",
     ):
         return ChoreEntity(coordinator, config_entry, subentry)
@@ -62,7 +62,7 @@ def test_native_value_is_integer_days_until_due() -> None:
     entity = _make_entity(datetime(2026, 5, 27, 0, 0))
 
     with patch(
-        "custom_components.chore_tracker.sensor.dt_util.now",
+        "custom_components.sh_chore_tracker.sensor.dt_util.now",
         return_value=datetime(2026, 5, 26, 19, 31, 27),
     ):
         value = entity.native_value
@@ -97,7 +97,7 @@ def test_attributes_read_the_individual_chore_record(
 ) -> None:
     entity = _make_entity(next_due, status)
     with patch(
-        "custom_components.chore_tracker.sensor.dt_util.now",
+        "custom_components.sh_chore_tracker.sensor.dt_util.now",
         return_value=datetime(2026, 10, 6, 12, tzinfo=timezone.utc),
     ):
         attributes = entity.extra_state_attributes
@@ -116,7 +116,7 @@ def test_native_value_tomorrow_is_one() -> None:
     entity = _make_entity(datetime(2026, 5, 27, 0, 0))
 
     with patch(
-        "custom_components.chore_tracker.sensor.dt_util.now",
+        "custom_components.sh_chore_tracker.sensor.dt_util.now",
         return_value=datetime(2026, 5, 26, 19, 31, 27),
     ):
         value = entity.native_value
@@ -129,7 +129,7 @@ def test_native_value_day_after_tomorrow_is_two() -> None:
     entity = _make_entity(datetime(2026, 5, 28, 0, 0))
 
     with patch(
-        "custom_components.chore_tracker.sensor.dt_util.now",
+        "custom_components.sh_chore_tracker.sensor.dt_util.now",
         return_value=datetime(2026, 5, 26, 19, 31, 27),
     ):
         value = entity.native_value
@@ -142,7 +142,7 @@ def test_status_attribute_returns_status_string() -> None:
     entity = _make_entity(datetime(2026, 5, 27, 0, 0), status="pending")
 
     with patch(
-        "custom_components.chore_tracker.sensor.dt_util.now",
+        "custom_components.sh_chore_tracker.sensor.dt_util.now",
         return_value=datetime(2026, 5, 26, 19, 31, 27),
     ):
         attrs = entity.extra_state_attributes
@@ -155,7 +155,7 @@ def test_integration_domain_attribute() -> None:
     entity = _make_entity(datetime(2026, 5, 27, 0, 0))
 
     with patch(
-        "custom_components.chore_tracker.sensor.dt_util.now",
+        "custom_components.sh_chore_tracker.sensor.dt_util.now",
         return_value=datetime(2026, 5, 26, 19, 31, 27),
     ):
         attrs = entity.extra_state_attributes
@@ -168,7 +168,7 @@ def test_days_until_due_also_present_as_attribute() -> None:
     entity = _make_entity(datetime(2026, 5, 27, 0, 0))
 
     with patch(
-        "custom_components.chore_tracker.sensor.dt_util.now",
+        "custom_components.sh_chore_tracker.sensor.dt_util.now",
         return_value=datetime(2026, 5, 26, 19, 31, 27),
     ):
         attrs = entity.extra_state_attributes
@@ -211,7 +211,7 @@ def test_hub_aggregate_sensors_report_next_due_and_overdue_count() -> None:
     assert overdue_count.device_info["model"] == "Summary"
 
     with patch(
-        "custom_components.chore_tracker.sensor.dt_util.now",
+        "custom_components.sh_chore_tracker.sensor.dt_util.now",
         return_value=datetime(2026, 5, 26, 12, 0),
     ):
         assert next_due.native_value == -1

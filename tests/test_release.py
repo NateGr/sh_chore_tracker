@@ -97,7 +97,7 @@ def test_partial_import_does_not_silently_skip_validation(repository):
 def imported_repository(repository):
     write_file(repository, "pyproject.toml", "[tool.smarthass]\nintegration-ready = true\n")
     manifest = {
-        "domain": "chore_tracker",
+        "domain": "sh_chore_tracker",
         "name": "SmartHass Chore Tracker",
         "documentation": "https://github.com/NateGr/sh_chore_tracker",
         "issue_tracker": "https://github.com/NateGr/sh_chore_tracker/issues",
@@ -105,8 +105,8 @@ def imported_repository(repository):
         "version": "0.2.0",
     }
     write_file(repository, MANIFEST.as_posix(), json.dumps(manifest))
-    write_file(repository, "custom_components/chore_tracker/__init__.py", "")
-    write_file(repository, "custom_components/chore_tracker/brand/icon.png", "test fixture")
+    write_file(repository, "custom_components/sh_chore_tracker/__init__.py", "")
+    write_file(repository, "custom_components/sh_chore_tracker/brand/icon.png", "test fixture")
     write_file(repository, "tests/test_config_flow.py", "")
     write_file(
         repository,
@@ -134,8 +134,8 @@ def test_import_readiness(imported_repository):
 @pytest.mark.parametrize(
     "relative",
     [
-        "custom_components/chore_tracker/__init__.py",
-        "custom_components/chore_tracker/brand/icon.png",
+        "custom_components/sh_chore_tracker/__init__.py",
+        "custom_components/sh_chore_tracker/brand/icon.png",
         "tests/test_config_flow.py",
     ],
 )
@@ -258,7 +258,7 @@ def test_recovery_rejects_commit_outside_main(released_repository):
     [
         ({"version": "0.2.0"}, {"version": "0.2.2"}, "0.2.1"),
         ({"version": "0.2.1"}, {"version": "0.2.1"}, "0.2.1"),
-        ({"version": "0.2.0", "domain": "chore_tracker"}, {"version": "0.2.1"}, "0.2.1"),
+        ({"version": "0.2.0", "domain": "sh_chore_tracker"}, {"version": "0.2.1"}, "0.2.1"),
     ],
 )
 def test_recovery_rejects_invalid_metadata(previous, candidate, version):

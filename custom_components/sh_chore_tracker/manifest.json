@@ -1,5 +1,5 @@
 {
-  "domain": "chore_tracker",
+  "domain": "sh_chore_tracker",
   "name": "SmartHass Chore Tracker",
   "codeowners": ["@NateGr"],
   "config_flow": true,

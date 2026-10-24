@@ -48,7 +48,7 @@ python -m pytest tests/ --cov=scripts --cov-report=term-missing
 
 Use `python -m ruff format .` to apply formatting. Review any automatic lint fixes
 before committing. Once integration validation is enabled, add
-`--cov=custom_components/chore_tracker` to the pytest command to match CI coverage.
+`--cov=custom_components/sh_chore_tracker` to the pytest command to match CI coverage.
 
 CI also runs hassfest on imported integration files and HACS validation when the
 repository is public. A green scaffold check does not mean the integration has
@@ -57,7 +57,7 @@ the import and validation checklist.
 
 ## Testing In Home Assistant
 
-After import, copy `custom_components/chore_tracker` into a disposable Home
+After import, copy `custom_components/sh_chore_tracker` into a disposable Home
 Assistant configuration's `custom_components` directory and restart it. Use
 backups and a test instance, not production household data. Keep local Home
 Assistant configuration, tokens, logs, and `.storage` files out of this repo.

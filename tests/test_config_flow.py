@@ -11,11 +11,11 @@ import voluptuous as vol
 from homeassistant.data_entry_flow import FlowResultType
 from homeassistant.util import dt as dt_util
 
-from custom_components.chore_tracker.config_flow import (
+from custom_components.sh_chore_tracker.config_flow import (
     ChoreTrackerChoreSubentryFlow,
     ChoreTrackerConfigFlow,
 )
-from custom_components.chore_tracker.const import (
+from custom_components.sh_chore_tracker.const import (
     CONF_ASSIGNED_PERSON,
     CONF_CHORE_DESCRIPTION,
     CONF_CHORE_NAME,
@@ -41,7 +41,7 @@ from custom_components.chore_tracker.const import (
 
 @pytest.mark.parametrize("section", ["config", "config_subentries", "selector", "entity"])
 def test_english_labels_match_translation_source(section: str) -> None:
-    integration = Path(__file__).parents[1] / "custom_components/chore_tracker"
+    integration = Path(__file__).parents[1] / "custom_components/sh_chore_tracker"
     source = json.loads((integration / "strings.json").read_text())
     english = json.loads((integration / "translations/en.json").read_text())
 
@@ -66,7 +66,7 @@ def test_english_labels_match_translation_source(section: str) -> None:
 async def test_flow_fields_and_selector_options_are_translated(
     section: str, step_id: str, selector_fields: list[str]
 ) -> None:
-    integration = Path(__file__).parents[1] / "custom_components/chore_tracker"
+    integration = Path(__file__).parents[1] / "custom_components/sh_chore_tracker"
     english = json.loads((integration / "translations/en.json").read_text())
     flow_class = {
         "config": ChoreTrackerConfigFlow,
@@ -133,7 +133,7 @@ class TestBasicInfoStep:
     async def test_existing_hub_abort_has_english_message(self) -> None:
         flow = _make_config_flow()
         flow._async_current_entries = lambda: [MagicMock()]
-        integration = Path(__file__).parents[1] / "custom_components/chore_tracker"
+        integration = Path(__file__).parents[1] / "custom_components/sh_chore_tracker"
         english = json.loads((integration / "translations/en.json").read_text())
 
         result = await flow.async_step_user()

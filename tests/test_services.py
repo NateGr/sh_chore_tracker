@@ -9,7 +9,7 @@ from homeassistant.exceptions import ServiceValidationError
 from homeassistant.helpers.selector import EntitySelector
 from homeassistant.util.yaml import load_yaml
 
-from custom_components.chore_tracker import (
+from custom_components.sh_chore_tracker import (
     ChoreCoordinator,
     _complete_chore_handler,
     _find_chore_data,
@@ -23,7 +23,7 @@ from custom_components.chore_tracker import (
     _snooze_chore_handler,
     _undo_complete_chore_handler,
 )
-from custom_components.chore_tracker.const import (
+from custom_components.sh_chore_tracker.const import (
     CHORE_STATUS_COMPLETE,
     CHORE_STATUS_PENDING,
     CHORE_STATUS_SKIPPED,
@@ -55,7 +55,7 @@ from custom_components.chore_tracker.const import (
 )
 def test_chore_action_selectors_filter_by_device_model(action: str) -> None:
     services = load_yaml(
-        str(Path(__file__).parents[1] / "custom_components/chore_tracker/services.yaml")
+        str(Path(__file__).parents[1] / "custom_components/sh_chore_tracker/services.yaml")
     )
     selector = EntitySelector(services[action]["fields"]["entity_id"]["selector"]["entity"])
 
@@ -616,7 +616,7 @@ class TestReassignChoreHandler:
         chore_data = _make_chore_data(coordinator)
         chore_data["config"]["assigned_person"] = "person.alice"
         entity_registry_entry = MagicMock(config_subentry_id="subentry_1")
-        with patch("custom_components.chore_tracker.er.async_get") as get_registry:
+        with patch("custom_components.sh_chore_tracker.er.async_get") as get_registry:
             get_registry.return_value.async_get.return_value = entity_registry_entry
 
             await _reassign_chore_handler(
@@ -755,7 +755,7 @@ class TestDataPersistence:
         subentry.data = chore_config
         entry.get_subentries_of_type.return_value = [subentry]
 
-        with patch("custom_components.chore_tracker.Store") as MockStore:
+        with patch("custom_components.sh_chore_tracker.Store") as MockStore:
             store_instance = MagicMock()
             store_instance.async_load = AsyncMock(return_value=None)
             store_instance.async_save = AsyncMock()
@@ -882,7 +882,7 @@ class TestFindChoreData:
         entry.platform = DOMAIN
 
         with patch(
-            "custom_components.chore_tracker.er.async_get",
+            "custom_components.sh_chore_tracker.er.async_get",
         ) as mock_registry:
             mock_registry.return_value.async_get.return_value = entry
             result_coordinator, result_data = await _find_chore_data(
@@ -904,7 +904,7 @@ class TestFindChoreData:
         entry.platform = "some_other_integration"
 
         with patch(
-            "custom_components.chore_tracker.er.async_get",
+            "custom_components.sh_chore_tracker.er.async_get",
         ) as mock_registry:
             mock_registry.return_value.async_get.return_value = entry
             result_coordinator, result_data = await _find_chore_data(hass, "sensor.chore_lookalike")
@@ -919,7 +919,7 @@ class TestFindChoreData:
         hass.data = {DOMAIN: {}}
 
         with patch(
-            "custom_components.chore_tracker.er.async_get",
+            "custom_components.sh_chore_tracker.er.async_get",
         ) as mock_registry:
             mock_registry.return_value.async_get.return_value = None
             result_coordinator, result_data = await _find_chore_data(hass, "sensor.chore_unknown")
@@ -944,7 +944,7 @@ class TestHandleServiceCallIntegrationValidation:
         handler = AsyncMock()
 
         with patch(
-            "custom_components.chore_tracker._find_chore_data",
+            "custom_components.sh_chore_tracker._find_chore_data",
             AsyncMock(return_value=(coordinator, coordinator._chore_data)),
         ):
             await _handle_service_call(hass, call, handler)
@@ -964,7 +964,7 @@ class TestHandleServiceCallIntegrationValidation:
         handler = AsyncMock()
 
         with patch(
-            "custom_components.chore_tracker._find_chore_data",
+            "custom_components.sh_chore_tracker._find_chore_data",
             AsyncMock(return_value=(None, None)),
         ):
             with pytest.raises(ServiceValidationError, match="not found"):

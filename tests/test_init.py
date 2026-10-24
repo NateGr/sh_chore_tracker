@@ -5,7 +5,7 @@ from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
 
-from custom_components.chore_tracker import (
+from custom_components.sh_chore_tracker import (
     PLATFORMS,
     ChoreCoordinator,
     RecurrenceEngine,
@@ -16,7 +16,7 @@ from custom_components.chore_tracker import (
     async_setup_entry,
     async_unload_entry,
 )
-from custom_components.chore_tracker.const import (
+from custom_components.sh_chore_tracker.const import (
     CHORE_STATUS_COMPLETE,
     CHORE_STATUS_DUE,
     CHORE_STATUS_OVERDUE,
@@ -52,7 +52,7 @@ async def test_setup_entry():
     summary = Mock(subentry_id="summary_subentry")
     entry.get_subentries_of_type.return_value = [summary]
 
-    with patch("custom_components.chore_tracker.ChoreCoordinator") as mock_coordinator:
+    with patch("custom_components.sh_chore_tracker.ChoreCoordinator") as mock_coordinator:
         mock_coordinator_instance = Mock()
         mock_coordinator_instance.async_load_persisted_state = AsyncMock()
         mock_coordinator_instance.async_config_entry_first_refresh = AsyncMock()
@@ -64,9 +64,9 @@ async def test_setup_entry():
             mock_forward.return_value = True
 
             with (
-                patch("custom_components.chore_tracker.dr.async_get") as get_devices,
+                patch("custom_components.sh_chore_tracker.dr.async_get") as get_devices,
                 patch(
-                    "custom_components.chore_tracker._async_update_hub_entities"
+                    "custom_components.sh_chore_tracker._async_update_hub_entities"
                 ) as update_entities,
             ):
                 get_devices.return_value.async_get_or_create = Mock()
@@ -99,9 +99,9 @@ def test_chore_entity_lookup_ignores_buttons() -> None:
         entity_id="sensor.my_renamed_laundry",
     )
     with (
-        patch("custom_components.chore_tracker.er.async_get"),
+        patch("custom_components.sh_chore_tracker.er.async_get"),
         patch(
-            "custom_components.chore_tracker.er.async_entries_for_config_entry",
+            "custom_components.sh_chore_tracker.er.async_entries_for_config_entry",
             return_value=[button, sensor],
         ),
     ):
@@ -145,9 +145,9 @@ def test_existing_summary_sensor_moves_to_summary_group() -> None:
         config_subentry_id=None,
     )
     with (
-        patch("custom_components.chore_tracker.er.async_get", return_value=registry),
+        patch("custom_components.sh_chore_tracker.er.async_get", return_value=registry),
         patch(
-            "custom_components.chore_tracker.er.async_entries_for_config_entry",
+            "custom_components.sh_chore_tracker.er.async_entries_for_config_entry",
             return_value=[entity],
         ),
     ):
@@ -190,9 +190,9 @@ def test_update_hub_entities_renames_generic_ids(
     registry = Mock()
     registry.async_get_available_entity_id.return_value = f"sensor.{object_id}_2"
     with (
-        patch("custom_components.chore_tracker.er.async_get", return_value=registry),
+        patch("custom_components.sh_chore_tracker.er.async_get", return_value=registry),
         patch(
-            "custom_components.chore_tracker.er.async_entries_for_config_entry",
+            "custom_components.sh_chore_tracker.er.async_entries_for_config_entry",
             return_value=[entity],
         ),
     ):
@@ -243,9 +243,9 @@ def test_update_hub_entities_preserves_other_ids(
     registry = Mock()
     entity = Mock(platform=platform, domain=domain, unique_id=unique_id, entity_id=entity_id)
     with (
-        patch("custom_components.chore_tracker.er.async_get", return_value=registry),
+        patch("custom_components.sh_chore_tracker.er.async_get", return_value=registry),
         patch(
-            "custom_components.chore_tracker.er.async_entries_for_config_entry",
+            "custom_components.sh_chore_tracker.er.async_entries_for_config_entry",
             return_value=[entity],
         ),
     ):
@@ -263,9 +263,9 @@ def test_update_hub_entities_removes_overdue_indicator() -> None:
         entity_id="binary_sensor.my_overdue_indicator",
     )
     with (
-        patch("custom_components.chore_tracker.er.async_get", return_value=registry),
+        patch("custom_components.sh_chore_tracker.er.async_get", return_value=registry),
         patch(
-            "custom_components.chore_tracker.er.async_entries_for_config_entry",
+            "custom_components.sh_chore_tracker.er.async_entries_for_config_entry",
             return_value=[entity],
         ),
     ):
@@ -344,7 +344,7 @@ async def test_hub_coordinator_initializes_all_chore_subentries():
     ]
     entry.get_subentries_of_type.return_value = subentries
 
-    with patch("custom_components.chore_tracker.Store"):
+    with patch("custom_components.sh_chore_tracker.Store"):
         coordinator = ChoreCoordinator(hass, entry)
 
     assert set(coordinator._chores) == {"chore_1", "chore_2"}
@@ -396,17 +396,17 @@ async def test_legacy_migration_imports_config_state_and_entity_ownership():
         return store
 
     with (
-        patch("custom_components.chore_tracker.Store", side_effect=make_store),
+        patch("custom_components.sh_chore_tracker.Store", side_effect=make_store),
         patch(
-            "custom_components.chore_tracker.er.async_get",
+            "custom_components.sh_chore_tracker.er.async_get",
             return_value=entity_registry,
         ),
         patch(
-            "custom_components.chore_tracker.er.async_entries_for_config_entry",
+            "custom_components.sh_chore_tracker.er.async_entries_for_config_entry",
             return_value=[entity],
         ),
         patch(
-            "custom_components.chore_tracker.dr.async_get",
+            "custom_components.sh_chore_tracker.dr.async_get",
             return_value=device_registry,
         ),
     ):
@@ -465,7 +465,7 @@ class TestCoordinatorLifecycleDateOnly:
         )
 
         with patch(
-            "custom_components.chore_tracker.dt_util.now",
+            "custom_components.sh_chore_tracker.dt_util.now",
             return_value=datetime(2026, 5, 27, 12, 0, tzinfo=datetime.now().astimezone().tzinfo),
         ):
             await coordinator._async_update_data()
@@ -483,7 +483,7 @@ class TestCoordinatorLifecycleDateOnly:
         )
 
         with patch(
-            "custom_components.chore_tracker.dt_util.now",
+            "custom_components.sh_chore_tracker.dt_util.now",
             return_value=datetime(2026, 5, 27, 9, 0, tzinfo=datetime.now().astimezone().tzinfo),
         ):
             await coordinator._async_update_data()
@@ -502,7 +502,7 @@ class TestCoordinatorLifecycleDateOnly:
         )
 
         with patch(
-            "custom_components.chore_tracker.dt_util.now",
+            "custom_components.sh_chore_tracker.dt_util.now",
             return_value=datetime(2026, 5, 27, 8, 30, tzinfo=datetime.now().astimezone().tzinfo),
         ):
             await coordinator._async_update_data()
@@ -521,7 +521,7 @@ class TestCoordinatorLifecycleDateOnly:
         )
 
         with patch(
-            "custom_components.chore_tracker.dt_util.now",
+            "custom_components.sh_chore_tracker.dt_util.now",
             return_value=datetime(2026, 5, 28, 8, 0, tzinfo=datetime.now().astimezone().tzinfo),
         ):
             await coordinator._async_update_data()
@@ -540,7 +540,7 @@ class TestCoordinatorLifecycleDateOnly:
         )
 
         with patch(
-            "custom_components.chore_tracker.dt_util.now",
+            "custom_components.sh_chore_tracker.dt_util.now",
             return_value=datetime(2026, 5, 27, 20, 0, tzinfo=datetime.now().astimezone().tzinfo),
         ):
             await coordinator._async_update_data()
@@ -560,7 +560,7 @@ class TestCoordinatorLifecycleDateOnly:
         )
 
         with patch(
-            "custom_components.chore_tracker.dt_util.now",
+            "custom_components.sh_chore_tracker.dt_util.now",
             return_value=datetime(2026, 5, 27, 0, 5, tzinfo=datetime.now().astimezone().tzinfo),
         ):
             await coordinator._async_update_data()
@@ -582,7 +582,7 @@ class TestCoordinatorLifecycleDateOnly:
         )
 
         with patch(
-            "custom_components.chore_tracker.dt_util.now",
+            "custom_components.sh_chore_tracker.dt_util.now",
             return_value=datetime(2026, 5, 27, 10, 0, tzinfo=datetime.now().astimezone().tzinfo),
         ):
             await coordinator._async_update_data()
@@ -601,7 +601,7 @@ class TestCoordinatorLifecycleDateOnly:
         )
 
         with patch(
-            "custom_components.chore_tracker.dt_util.now",
+            "custom_components.sh_chore_tracker.dt_util.now",
             return_value=datetime(2026, 5, 28, 7, 0, tzinfo=datetime.now().astimezone().tzinfo),
         ):
             await coordinator._async_update_data()
@@ -619,7 +619,7 @@ class TestCoordinatorLifecycleDateOnly:
         )
 
         with patch(
-            "custom_components.chore_tracker.dt_util.now",
+            "custom_components.sh_chore_tracker.dt_util.now",
             return_value=datetime(2026, 5, 27, 10, 0, tzinfo=datetime.now().astimezone().tzinfo),
         ):
             await coordinator._async_update_data()
@@ -641,7 +641,7 @@ class TestCoordinatorLifecycleDateOnly:
         )
 
         with patch(
-            "custom_components.chore_tracker.dt_util.now",
+            "custom_components.sh_chore_tracker.dt_util.now",
             return_value=datetime(2026, 5, 27, 10, 0, tzinfo=datetime.now().astimezone().tzinfo),
         ):
             await coordinator._async_update_data()
@@ -668,7 +668,7 @@ class TestCoordinatorLifecycleDateOnly:
         }
 
         with patch(
-            "custom_components.chore_tracker.dt_util.now",
+            "custom_components.sh_chore_tracker.dt_util.now",
             return_value=datetime(2026, 5, 14, 9, 0, tzinfo=datetime.now().astimezone().tzinfo),
         ):
             changed = coordinator._apply_chore_first_occurrence_update(
@@ -704,7 +704,7 @@ class TestCoordinatorLifecycleDateOnly:
         }
 
         with patch(
-            "custom_components.chore_tracker.dt_util.now",
+            "custom_components.sh_chore_tracker.dt_util.now",
             return_value=datetime(2026, 5, 14, 9, 0, tzinfo=datetime.now().astimezone().tzinfo),
         ):
             changed = coordinator._apply_chore_first_occurrence_update(
@@ -756,8 +756,8 @@ class TestCoordinatorLifecycleDateOnly:
 
         # Mimic what async_load_persisted_state does: stamp applied_first_occurrence_date
         # on first load when it is absent (migration path).
-        from custom_components.chore_tracker.const import CONF_FIRST_OCCURRENCE_DATE
-        from custom_components.chore_tracker.date_utils import coerce_date
+        from custom_components.sh_chore_tracker.const import CONF_FIRST_OCCURRENCE_DATE
+        from custom_components.sh_chore_tracker.date_utils import coerce_date
 
         state = coordinator._chores["test_chore"]["state"]
         config = coordinator._chores["test_chore"]["config"]
@@ -767,7 +767,7 @@ class TestCoordinatorLifecycleDateOnly:
                 state["applied_first_occurrence_date"] = seed
 
         with patch(
-            "custom_components.chore_tracker.dt_util.now",
+            "custom_components.sh_chore_tracker.dt_util.now",
             return_value=datetime(2026, 8, 30, 9, 0, tzinfo=datetime.now().astimezone().tzinfo),
         ):
             changed = coordinator._apply_chore_first_occurrence_update(

@@ -22,7 +22,7 @@ Mark a chore as completed and calculate the next due date.
 #### Example
 
 ```yaml
-service: chore_tracker.complete_chore
+service: sh_chore_tracker.complete_chore
 data:
   entity_id: sensor.chore_take_out_trash
   completion_date: "2025-01-15T10:00:00"
@@ -33,13 +33,13 @@ data:
 - Updates chore status to "complete"
 - Increments completion count
 - Calculates next due date using recurrence engine
-- Fires `chore_tracker_chore_completed` event
+- Fires `sh_chore_tracker_chore_completed` event
 - Clears any snooze state
 
 #### Events Fired
 
 ```yaml
-event_type: chore_tracker_chore_completed
+event_type: sh_chore_tracker_chore_completed
 data:
   entity_id: sensor.chore_take_out_trash
   completed_at: "2025-01-15T10:00:00"
@@ -60,7 +60,7 @@ Temporarily postpone a chore for a specified number of days.
 #### Example
 
 ```yaml
-service: chore_tracker.snooze_chore
+service: sh_chore_tracker.snooze_chore
 data:
   entity_id: sensor.chore_clean_kitchen
   days: 3
@@ -77,7 +77,7 @@ data:
 #### Events Fired
 
 ```yaml
-event_type: chore_tracker_chore_snoozed
+event_type: sh_chore_tracker_chore_snoozed
 data:
   entity_id: sensor.chore_clean_kitchen
   snoozed_for_days: 3
@@ -98,7 +98,7 @@ Skip the current occurrence of a chore and move to the next scheduled date.
 #### Example
 
 ```yaml
-service: chore_tracker.skip_chore
+service: sh_chore_tracker.skip_chore
 data:
   entity_id: sensor.chore_mow_lawn
   reason: "Weather too wet"
@@ -114,7 +114,7 @@ data:
 #### Events Fired
 
 ```yaml
-event_type: chore_tracker_chore_skipped
+event_type: sh_chore_tracker_chore_skipped
 data:
   entity_id: sensor.chore_mow_lawn
   skip_date: "2025-01-18T10:30:00"
@@ -133,7 +133,7 @@ Restore a recently skipped chore instance.
 #### Example
 
 ```yaml
-service: chore_tracker.restore_chore
+service: sh_chore_tracker.restore_chore
 data:
   entity_id: sensor.chore_mow_lawn
 ```
@@ -154,7 +154,7 @@ data:
 #### Events Fired
 
 ```yaml
-event_type: chore_tracker_chore_restored
+event_type: sh_chore_tracker_chore_restored
 data:
   entity_id: sensor.chore_mow_lawn
   restore_date: "2025-01-18T11:00:00"
@@ -173,7 +173,7 @@ Transfer chore responsibility to a different person.
 #### Example
 
 ```yaml
-service: chore_tracker.reassign_chore
+service: sh_chore_tracker.reassign_chore
 data:
   entity_id: sensor.chore_vacuum_living_room
   person_id: person.jane
@@ -194,7 +194,7 @@ data:
 #### Events Fired
 
 ```yaml
-event_type: chore_tracker_chore_reassigned
+event_type: sh_chore_tracker_chore_reassigned
 data:
   entity_id: sensor.chore_vacuum_living_room
   old_person: person.john
@@ -211,7 +211,7 @@ This service is no longer available. Add and edit chores through the hub's chore
 Recalculate from the last completion, or from `first_occurrence_date` if the chore has never been completed. There is no replacement-date parameter. Reset clears snooze/skip overrides, preserves completion history, and leaves a past due date overdue.
 
 ```yaml
-service: chore_tracker.reset_next_due_date
+service: sh_chore_tracker.reset_next_due_date
 data:
   entity_id: sensor.chore_vacuum_living_room
 ```
@@ -221,7 +221,7 @@ data:
 Restore the previous chore state after an accidental completion, within the configured undo window.
 
 ```yaml
-service: chore_tracker.undo_complete_chore
+service: sh_chore_tracker.undo_complete_chore
 data:
   entity_id: sensor.chore_vacuum_living_room
 ```
@@ -231,7 +231,7 @@ data:
 Add a validated chore subentry to the household hub. This changes integration configuration and requires an administrator.
 
 ```yaml
-service: chore_tracker.create_chore
+service: sh_chore_tracker.create_chore
 data:
   chore_name: Water plants
   recurrence_type: interval
@@ -245,7 +245,7 @@ data:
 Return chores assigned to the specified Person entity.
 
 ```yaml
-service: chore_tracker.list_my_chores
+service: sh_chore_tracker.list_my_chores
 data:
   person_id: person.alice
 ```
@@ -310,7 +310,7 @@ automation:
     device_id: !secret chore_button_device
     type: pressed
   action:
-    service: chore_tracker.complete_chore
+    service: sh_chore_tracker.complete_chore
     data:
       entity_id: sensor.chore_take_out_trash
 ```
@@ -329,7 +329,7 @@ automation:
     entity_id: sensor.chore_walk_dog
     state: pending
   action:
-    service: chore_tracker.snooze_chore
+    service: sh_chore_tracker.snooze_chore
     data:
       entity_id: sensor.chore_walk_dog
       days: 1
@@ -368,7 +368,7 @@ automation:
     condition: template
     value_template: "{{ now().weekday() == 0 }}" # Monday
   action:
-    - service: chore_tracker.reassign_chore
+    - service: sh_chore_tracker.reassign_chore
       data:
         entity_id: sensor.chore_vacuum
         person_id: >
@@ -436,7 +436,7 @@ Events include relevant data for automation conditions and actions.
 ```yaml
 automation:
   action:
-    - service: chore_tracker.complete_chore
+    - service: sh_chore_tracker.complete_chore
       data:
         entity_id: sensor.chore_example
     - wait_for_trigger:

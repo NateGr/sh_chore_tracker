@@ -10,7 +10,7 @@ complete_chore:
         entity:
           filter:
             domain: sensor
-            integration: chore_tracker
+            integration: sh_chore_tracker
             device:
               model: chore
     completion_date:
@@ -32,7 +32,7 @@ undo_complete_chore:
         entity:
           filter:
             domain: sensor
-            integration: chore_tracker
+            integration: sh_chore_tracker
             device:
               model: chore
 
@@ -48,7 +48,7 @@ snooze_chore:
         entity:
           filter:
             domain: sensor
-            integration: chore_tracker
+            integration: sh_chore_tracker
             device:
               model: chore
     days:
@@ -80,7 +80,7 @@ skip_chore:
         entity:
           filter:
             domain: sensor
-            integration: chore_tracker
+            integration: sh_chore_tracker
             device:
               model: chore
     reason:
@@ -102,7 +102,7 @@ restore_chore:
         entity:
           filter:
             domain: sensor
-            integration: chore_tracker
+            integration: sh_chore_tracker
             device:
               model: chore
 
@@ -118,7 +118,7 @@ reassign_chore:
         entity:
           filter:
             domain: sensor
-            integration: chore_tracker
+            integration: sh_chore_tracker
             device:
               model: chore
     person_id:
@@ -140,7 +140,7 @@ reset_next_due_date:
         entity:
           filter:
             domain: sensor
-            integration: chore_tracker
+            integration: sh_chore_tracker
             device:
               model: chore
 

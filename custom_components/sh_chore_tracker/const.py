@@ -1,6 +1,6 @@
 """Constants for the Chore Tracker integration."""
 
-DOMAIN = "chore_tracker"
+DOMAIN = "sh_chore_tracker"
 SUBENTRY_TYPE_CHORE = "chore"
 SUBENTRY_TYPE_SUMMARY = "summary"
 CONF_HUB_ENTRY = "is_hub_entry"
@@ -94,14 +94,14 @@ SERVICE_CREATE_CHORE = "create_chore"
 SERVICE_LIST_MY_CHORES = "list_my_chores"
 
 # Event names
-EVENT_CHORE_COMPLETED = "chore_tracker_chore_completed"
-EVENT_CHORE_COMPLETE_UNDONE = "chore_tracker_chore_complete_undone"
-EVENT_CHORE_SNOOZED = "chore_tracker_chore_snoozed"
-EVENT_CHORE_SKIPPED = "chore_tracker_chore_skipped"
-EVENT_CHORE_RESTORED = "chore_tracker_chore_restored"
-EVENT_CHORE_REASSIGNED = "chore_tracker_chore_reassigned"
-EVENT_CHORE_OVERDUE = "chore_tracker_chore_overdue"
-EVENT_CHORE_SCHEDULE_RESET = "chore_tracker_chore_schedule_reset"
+EVENT_CHORE_COMPLETED = "sh_chore_tracker_chore_completed"
+EVENT_CHORE_COMPLETE_UNDONE = "sh_chore_tracker_chore_complete_undone"
+EVENT_CHORE_SNOOZED = "sh_chore_tracker_chore_snoozed"
+EVENT_CHORE_SKIPPED = "sh_chore_tracker_chore_skipped"
+EVENT_CHORE_RESTORED = "sh_chore_tracker_chore_restored"
+EVENT_CHORE_REASSIGNED = "sh_chore_tracker_chore_reassigned"
+EVENT_CHORE_OVERDUE = "sh_chore_tracker_chore_overdue"
+EVENT_CHORE_SCHEDULE_RESET = "sh_chore_tracker_chore_schedule_reset"
 
 # Default values
 DEFAULT_SNOOZE_DAYS = 3

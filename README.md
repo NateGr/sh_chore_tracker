@@ -22,7 +22,7 @@ Once the first release is published:
 
 Download a published release's source archive from
 [Releases](https://github.com/NateGr/sh_chore_tracker/releases), then copy
-`custom_components/chore_tracker` into your Home Assistant configuration's
+`custom_components/sh_chore_tracker` into your Home Assistant configuration's
 `custom_components` directory and restart Home Assistant.
 
 The minimum supported Home Assistant version will be published after the hub
@@ -31,7 +31,7 @@ this is not a Home Assistant compatibility claim.
 
 ## Existing Users
 
-The integration domain remains `chore_tracker`. Do not delete existing Home
+The integration domain remains `sh_chore_tracker`. Do not delete existing Home
 Assistant integration entries or install both repositories at the same time.
 Tested migration instructions will be published before the old repository is
 retired. Back up Home Assistant before switching repositories.

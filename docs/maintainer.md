@@ -3,7 +3,7 @@
 ## Current State
 
 The repository scaffold and release helper are ready. The hub integration package,
-tests, and branding have been imported and adapted to the `chore_tracker` domain.
+tests, and branding have been imported and adapted to the `sh_chore_tracker` domain.
 The Home Assistant test dependency, supported-version baseline, migration behavior,
 and branding license still need verification. `tool.smarthass.integration-ready`
 in `pyproject.toml` remains deliberately `false`; releases, including dry runs,
@@ -15,12 +15,12 @@ should be triaged against the current hub code before being treated as active wo
 
 ## Import Checklist
 
-1. Audit the imported `custom_components/chore_tracker`, tests, runtime assets,
+1. Audit the imported `custom_components/sh_chore_tracker`, tests, runtime assets,
   useful user docs, and attribution. Do not copy the source `.git`, development
   HA configuration, editor tasks, agent/tooling directories, or release
   automation into the operational tree. Historical docs and backlogs belong in
   `docs/legacy/` and are not active release requirements.
-2. Preserve `chore_tracker`, entity unique IDs, config-entry identity/version,
+2. Preserve `sh_chore_tracker`, entity unique IDs, config-entry identity/version,
    service names, and storage keys. Update the manifest display name to
    `SmartHass Chore Tracker`, documentation to
    `https://github.com/NateGr/sh_chore_tracker`, issue tracker to that URL plus
@@ -34,7 +34,7 @@ should be triaged against the current hub code before being treated as active wo
 4. If the supported Python changes, update both setup-python steps and the Ruff
    target in `pyproject.toml`, plus the contributor instructions. Set
    `homeassistant` in `hacs.json` to the tested minimum and document it in README.
-5. Add a licensed `custom_components/chore_tracker/brand/icon.png`. Keep all
+5. Add a licensed `custom_components/sh_chore_tracker/brand/icon.png`. Keep all
    runtime integration files inside the integration directory. No custom ZIP
    release is needed.
 6. Set `tool.smarthass.integration-ready = true`. Run the contributor checks,

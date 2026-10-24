@@ -7,12 +7,12 @@ from homeassistant.components.button import ButtonEntityDescription
 from homeassistant.core import Context
 from homeassistant.exceptions import ServiceValidationError
 
-from custom_components.chore_tracker.button import (
+from custom_components.sh_chore_tracker.button import (
     BUTTON_DESCRIPTIONS,
     ChoreActionButton,
     async_setup_entry,
 )
-from custom_components.chore_tracker.const import DOMAIN, SUBENTRY_TYPE_CHORE
+from custom_components.sh_chore_tracker.const import DOMAIN, SUBENTRY_TYPE_CHORE
 
 
 @pytest.fixture

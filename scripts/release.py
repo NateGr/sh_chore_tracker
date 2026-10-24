@@ -10,7 +10,7 @@ import tomllib
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-MANIFEST = Path("custom_components/chore_tracker/manifest.json")
+MANIFEST = Path("custom_components/sh_chore_tracker/manifest.json")
 VERSION_PATTERN = re.compile(r"(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)")
 
 
@@ -120,7 +120,7 @@ def check_readiness(root: Path, *, require_integration: bool = False) -> bool:
         raise ValueError("Missing imported integration __init__.py.")
     manifest = json.loads((root / MANIFEST).read_text(encoding="utf-8"))
     expected = {
-        "domain": "chore_tracker",
+        "domain": "sh_chore_tracker",
         "name": "SmartHass Chore Tracker",
         "documentation": "https://github.com/NateGr/sh_chore_tracker",
         "issue_tracker": "https://github.com/NateGr/sh_chore_tracker/issues",
