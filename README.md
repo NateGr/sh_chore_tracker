@@ -4,7 +4,7 @@ SmartHass Chore Tracker is a Home Assistant custom integration for scheduling,
 assigning, and tracking household chores. It creates a household hub with
 individual chore sensors, summary sensors, and buttons for common chore actions.
 
-Requires **Home Assistant 2025.1 or newer**.
+Requires **Home Assistant 2026.9.0 or newer**.
 
 ## Features
 

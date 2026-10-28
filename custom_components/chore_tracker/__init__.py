@@ -962,7 +962,7 @@ class ChoreCoordinator(DataUpdateCoordinator):
                     if key in datetime_keys and value:
                         try:
                             state[key] = datetime.fromisoformat(value)
-                        except (ValueError, TypeError):
+                        except ValueError, TypeError:
                             continue
                     else:
                         state[key] = value
