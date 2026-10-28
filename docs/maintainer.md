@@ -56,8 +56,18 @@ offers the correct check name.
 Use `main` as the default branch. Add a description and topics such as
 `home-assistant`, `hacs`, `custom-component`, and `python`. Enable Issues, squash
 merges, and automatic deletion of merged branches. Disable unused wiki/projects.
-Enable private vulnerability reporting, dependency alerts, and secret scanning
-and push protection where available. Do not auto-merge dependency updates.
+Do not auto-merge dependency updates.
+
+#### Security settings status
+
+- [x] Dependency graph enabled.
+- [x] Dependabot vulnerability reporting enabled.
+- [ ] Check whether Dependabot security updates are available and enable them
+  if appropriate; review update PRs rather than enabling auto-merge.
+- [ ] Private vulnerability reporting was not visible in repository settings;
+  revisit after confirming plan/organization availability.
+- [ ] Secret scanning and push protection were not available in repository
+  settings; revisit after confirming plan/organization availability.
 
 ### Release App
 
