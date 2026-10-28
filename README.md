@@ -4,17 +4,7 @@ SmartHass Chore Tracker is a Home Assistant custom integration for scheduling,
 assigning, and tracking household chores. It creates a household hub with
 individual chore sensors, summary sensors, and buttons for common chore actions.
 
-> **Branch status:** These instructions describe the `import-core-code` branch.
-> It has not been merged into the repository's default `main` branch, and there
-> are no published releases or tags yet. The manual installation below installs
-> this branch directly. This repository is private, so you need repository
-> access to download it. HACS and release-archive installation are not available
-> until the integration is published from a HACS-installable branch.
-
-The integration uses native Home Assistant config subentries and therefore
-requires **Home Assistant 2025.1 or newer**. The minimum supported release and
-startup migration behavior have not yet been verified. Back up your Home
-Assistant configuration and storage before installing or upgrading.
+Requires **Home Assistant 2025.1 or newer**.
 
 ## Features
 
@@ -26,19 +16,28 @@ Assistant configuration and storage before installing or upgrading.
 - Use chore services and events in automations.
 - Persist chore schedules and lifecycle state across Home Assistant restarts.
 
-## Install from `import-core-code`
+## Installation
 
-This is a manual installation from the current development branch, not an
-installation from a published release.
+### HACS
 
-1. Download the [import-core-code branch ZIP](https://github.com/NateGr/sh_chore_tracker/archive/refs/heads/import-core-code.zip).
-2. Extract the ZIP and copy its `custom_components/chore_tracker` directory
-   into `<config>/custom_components/chore_tracker`, where `<config>` is your
-   Home Assistant configuration directory. Create `custom_components` if it
+1. In HACS, open **Integrations** and select the menu in the upper-right corner.
+2. Select **Custom repositories** and add
+   `https://github.com/NateGr/sh_chore_tracker` with category **Integration**.
+3. Find **SmartHass Chore Tracker**, install it, and restart Home Assistant.
+
+If the integration is listed in the HACS catalog, find it under **Integrations**
+and install it directly.
+
+### Manual
+
+1. Download the latest release from
+   [GitHub Releases](https://github.com/NateGr/sh_chore_tracker/releases).
+2. Extract the archive and copy `custom_components/chore_tracker` into your
+   Home Assistant configuration directory at
+   `<config>/custom_components/chore_tracker`. Create `custom_components` if it
    does not already exist.
-3. Confirm that `manifest.json` is at
-   `<config>/custom_components/chore_tracker/manifest.json`.
-4. Restart Home Assistant.
+3. Confirm that `<config>/custom_components/chore_tracker/manifest.json`
+   exists, then restart Home Assistant.
 
 For example, the resulting directory layout should look like this:
 
@@ -52,14 +51,7 @@ For example, the resulting directory layout should look like this:
         └── button.py
 ```
 
-The repository's default branch is currently `main`, and it does not yet
-contain this integration. Do not add this repository as a HACS custom
-integration until the integration has been merged to a HACS-installable branch
-and a release has been published. Once available, install **SmartHass Chore
-Tracker** through HACS, restart Home Assistant, and add the integration from
-**Settings > Devices & services**.
-
-## Configure the Household
+## Setup
 
 1. In Home Assistant, open **Settings > Devices & services** and select **Add
    Integration**.
@@ -159,14 +151,11 @@ instance. Completion, snooze, skip, restore, reassignment, schedule reset, and
 overdue transitions also emit `chore_tracker_*` events; see the service
 reference for event names and payloads.
 
-## Existing Installations and Upgrades
+## Upgrading
 
-The integration domain is `chore_tracker`. Back up Home Assistant before
-installing or upgrading, and do not install copies of the integration from
-multiple repositories at the same time. This branch includes startup migration
-code for legacy per-chore entries, but the migration and minimum supported
-Home Assistant version have not been verified in a live upgrade; review the
-backup and migration implications before using it with an existing installation.
+Back up your Home Assistant configuration before upgrading. Keep only one
+installation of the integration active; do not install copies from multiple
+repositories at the same time. The integration domain is `chore_tracker`.
 
 ## Contributing And Support
 
