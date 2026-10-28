@@ -7,6 +7,10 @@ to the `chore_tracker` domain. The test suite pins Home Assistant 2026.9.0, the
 selected minimum supported version. Live upgrade behavior and the branding
 license still need maintainer verification before a production release.
 
+CI and release validation use Ubuntu 24.04 with Python 3.14.2. Keep the runner
+version pinned: GitHub's Python 3.14.2 builds are not available for Ubuntu 26.04.
+Check the setup-python version manifest before updating either pin.
+
 The source repository's docs, user stories, and backlog snapshots are preserved
 in the [legacy archive](legacy/README.md). They span several architectures and
 should be triaged against the current hub code before being treated as active work.
