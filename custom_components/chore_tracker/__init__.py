@@ -509,6 +509,8 @@ class RecurrenceEngine:
 
 _LOGGER = logging.getLogger(__name__)
 
+CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
+
 PLATFORMS: list[Platform] = [Platform.SENSOR, Platform.BUTTON]
 
 # Update interval for coordinator
