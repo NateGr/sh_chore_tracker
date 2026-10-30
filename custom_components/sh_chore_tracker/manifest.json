@@ -1,12 +1,14 @@
 {
   "domain": "sh_chore_tracker",
   "name": "SmartHass Chore Tracker",
-  "codeowners": ["@NateGr"],
+  "codeowners": [
+    "@NateGr"
+  ],
   "config_flow": true,
   "documentation": "https://github.com/NateGr/sh_chore_tracker",
   "integration_type": "hub",
   "iot_class": "calculated",
   "issue_tracker": "https://github.com/NateGr/sh_chore_tracker/issues",
   "requirements": [],
-  "version": "0.5.0"
+  "version": "0.5.1"
 }
