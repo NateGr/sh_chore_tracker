@@ -71,7 +71,9 @@
   },
   "config_subentries": {
     "summary": {
-      "entry_type": "Overall summary"
+      "entry_type": "Overall summary",
+      "initiate_flow": { "user": "Add summary" },
+      "step": {}
     },
     "chore": {
       "entry_type": "Chore",

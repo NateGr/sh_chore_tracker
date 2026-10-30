@@ -144,8 +144,11 @@ def check_readiness(root: Path, *, require_integration: bool = False) -> bool:
     if not any(path.name != "test_release.py" for path in tests):
         raise ValueError("Import integration tests; release-helper tests alone are insufficient.")
     requirements = (root / "requirements_test.txt").read_text(encoding="utf-8")
-    if not re.search(r"^pytest-homeassistant-custom-component==\S+", requirements, re.MULTILINE):
-        raise ValueError("Pin a verified pytest-homeassistant-custom-component dependency.")
+    homeassistant_pin = re.search(r"^homeassistant==(\S+)$", requirements, re.MULTILINE)
+    if not homeassistant_pin or homeassistant_pin.group(1) != hacs.get("homeassistant"):
+        raise ValueError(
+            "Pin Home Assistant to the verified hacs.json minimum in requirements_test.txt."
+        )
     return True
 
 

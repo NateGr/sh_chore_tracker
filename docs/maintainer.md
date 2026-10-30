@@ -2,12 +2,14 @@
 
 ## Current State
 
-The repository scaffold and release helper are ready. The hub integration package,
-tests, and branding have been imported and adapted to the `sh_chore_tracker` domain.
-The Home Assistant test dependency, supported-version baseline, migration behavior,
-and branding license still need verification. `tool.smarthass.integration-ready`
-in `pyproject.toml` remains deliberately `false`; releases, including dry runs,
-refuse to proceed until validation is complete.
+The hub integration package, tests, and branding have been imported and adapted
+to the `sh_chore_tracker` domain. The test suite pins Home Assistant 2026.9.0, the
+selected minimum supported version. Live upgrade behavior and the branding
+license still need maintainer verification before a production release.
+
+CI and release validation use Ubuntu 24.04 with Python 3.14.2. Keep the runner
+version pinned: GitHub's Python 3.14.2 builds are not available for Ubuntu 26.04.
+Check the setup-python version manifest before updating either pin.
 
 The source repository's docs, user stories, and backlog snapshots are preserved
 in the [legacy archive](legacy/README.md). They span several architectures and
@@ -26,21 +28,20 @@ should be triaged against the current hub code before being treated as active wo
    `https://github.com/NateGr/sh_chore_tracker`, issue tracker to that URL plus
    `/issues`, and include `@NateGr` in codeowners. Retain the actual current
    version and required runtime metadata.
-3. Review imported tests before changing behavior. Select a compatible Python,
-   Home Assistant, and `pytest-homeassistant-custom-component` combination;
-   add a verified exact plugin pin to `requirements_test.txt`. Adjust pytest and
-   coverage pins together if needed. Enable only the asyncio/HA fixtures the
-   imported tests actually need. Do not infer compatibility from old docs.
+3. Review imported tests before changing behavior. The exact pytest pins and
+   Home Assistant baseline are selected in `requirements_test.txt`; run the
+   complete suite before changing them.
 4. If the supported Python changes, update both setup-python steps and the Ruff
-   target in `pyproject.toml`, plus the contributor instructions. Set
-   `homeassistant` in `hacs.json` to the tested minimum and document it in README.
+   target in `pyproject.toml`, plus the contributor instructions. Keep
+   `homeassistant` in `hacs.json` and the README aligned with the tested minimum.
 5. Add a licensed `custom_components/sh_chore_tracker/brand/icon.png`. Keep all
    runtime integration files inside the integration directory. No custom ZIP
    release is needed.
-6. Set `tool.smarthass.integration-ready = true`. Run the contributor checks,
-   `python scripts/release.py check --require-integration`, and the complete
-   imported test suite. The flag is an explicit maintainer assertion, not proof
-   that its dependency pins or minimum HA version have been tested.
+6. Run the contributor checks, `python scripts/release.py check
+   --require-integration`, and the complete imported test suite. Keep
+   `tool.smarthass.integration-ready = true` only while integration tests and
+   metadata validation are passing. The flag is an explicit maintainer assertion,
+   not proof that live upgrades or branding licensing have been verified.
 7. Remove the README's pending-import notice only when it is accurate to do so.
    Retain any useful legacy changelog as historical documentation; GitHub release
    notes are the source of new release history.
@@ -56,8 +57,18 @@ offers the correct check name.
 Use `main` as the default branch. Add a description and topics such as
 `home-assistant`, `hacs`, `custom-component`, and `python`. Enable Issues, squash
 merges, and automatic deletion of merged branches. Disable unused wiki/projects.
-Enable private vulnerability reporting, dependency alerts, and secret scanning
-and push protection where available. Do not auto-merge dependency updates.
+Do not auto-merge dependency updates.
+
+#### Security settings status
+
+- [x] Dependency graph enabled.
+- [x] Dependabot vulnerability reporting enabled.
+- [ ] Check whether Dependabot security updates are available and enable them
+  if appropriate; review update PRs rather than enabling auto-merge.
+- [ ] Private vulnerability reporting was not visible in repository settings;
+  revisit after confirming plan/organization availability.
+- [ ] Secret scanning and push protection were not available in repository
+  settings; revisit after confirming plan/organization availability.
 
 ### Release App
 
@@ -155,7 +166,7 @@ tags, and invalid versions stop the release rather than weakening the gates.
   HA instance; no production household config should be used as a test sandbox.
 - Back up an existing installation and test the repository switch. Do not delete
   HA integration entries or `.storage`. Do not leave both repositories managing
-  `chore_tracker`. HACS removal may remove installed files: test its current
+  `sh_chore_tracker`. HACS removal may remove installed files: test its current
   behavior and reinstall from the new repo before restarting HA.
 - Verify entities, configuration, chores, and completion history survive. Publish
   the exact tested migration steps; do not assume GitHub or HACS redirects them.

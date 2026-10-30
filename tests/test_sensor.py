@@ -77,10 +77,10 @@ def test_device_info_groups_chore_under_hub_device() -> None:
 
     device_info = entity.device_info
 
-    assert device_info["identifiers"] == {("sh_chore_tracker", "entry_1")}
+    assert device_info["identifiers"] == {(DOMAIN, "entry_1")}
     assert device_info["via_device_id"] == "hub_device"
     assert device_info["name"] == "Test Chore"
-    assert device_info["manufacturer"] == "ha-chore-tracker"
+    assert device_info["manufacturer"] == "SmartHass"
     assert device_info["model"] == "chore"
     assert entity.name is None
 
@@ -151,7 +151,7 @@ def test_status_attribute_returns_status_string() -> None:
 
 
 def test_integration_domain_attribute() -> None:
-    """extra_state_attributes['integration_domain'] should always be 'sh_chore_tracker'."""
+    """extra_state_attributes['integration_domain'] should always match the integration domain."""
     entity = _make_entity(datetime(2026, 5, 27, 0, 0))
 
     with patch(
@@ -160,7 +160,7 @@ def test_integration_domain_attribute() -> None:
     ):
         attrs = entity.extra_state_attributes
 
-    assert attrs["integration_domain"] == "sh_chore_tracker"
+    assert attrs["integration_domain"] == DOMAIN
 
 
 def test_days_until_due_also_present_as_attribute() -> None:

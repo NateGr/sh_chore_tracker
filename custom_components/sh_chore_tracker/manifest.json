@@ -4,9 +4,9 @@
   "codeowners": ["@NateGr"],
   "config_flow": true,
   "documentation": "https://github.com/NateGr/sh_chore_tracker",
-  "issue_tracker": "https://github.com/NateGr/sh_chore_tracker/issues",
   "integration_type": "hub",
   "iot_class": "calculated",
+  "issue_tracker": "https://github.com/NateGr/sh_chore_tracker/issues",
   "requirements": [],
   "version": "0.5.0"
 }

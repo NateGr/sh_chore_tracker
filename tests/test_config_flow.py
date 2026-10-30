@@ -48,6 +48,19 @@ def test_english_labels_match_translation_source(section: str) -> None:
     assert english[section] == source[section]
 
 
+def test_subentry_translations_include_required_flow_sections() -> None:
+    integration = Path(__file__).parents[1] / "custom_components/sh_chore_tracker"
+    source = json.loads((integration / "strings.json").read_text())
+
+    for translations in source["config_subentries"].values():
+        assert translations["entry_type"]
+        assert translations["initiate_flow"]["user"]
+        assert isinstance(translations["step"], dict)
+
+    # The automatic summary has labels but no user-facing configuration steps.
+    assert source["config_subentries"]["summary"]["step"] == {}
+
+
 @pytest.mark.parametrize("section", ["config", "chore"])
 @pytest.mark.parametrize(
     ("step_id", "selector_fields"),
@@ -367,7 +380,7 @@ class TestChoreTrackerConfigFlowClass:
     def test_registers_chore_subentry_flow(self):
         entry = MagicMock()
         subentry_types = ChoreTrackerConfigFlow.async_get_supported_subentry_types(entry)
-        assert subentry_types[SUBENTRY_TYPE_CHORE] is ChoreTrackerChoreSubentryFlow
+        assert subentry_types == {SUBENTRY_TYPE_CHORE: ChoreTrackerChoreSubentryFlow}
 
 
 class TestChoreSubentryFlow:

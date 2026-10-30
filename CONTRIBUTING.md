@@ -7,16 +7,15 @@ required from contributors.
 
 ## Local Setup
 
-Use Python 3.13 to match CI. The integration and its tests are imported, but the
-Home Assistant test dependency and supported-version baseline are not yet
-verified. A running Home Assistant server is not required for scaffold checks;
-integration tests should use Linux, WSL2, or another supported HA development
-environment.
+Use Python 3.14.2 or newer to match CI and Home Assistant 2026.9.0. The test requirements pin Home Assistant to the
+minimum supported version in `hacs.json`. A running Home Assistant server is
+not required; tests use Home Assistant's installed Python package and mocked
+instances where needed.
 
 Windows PowerShell:
 
 ```powershell
-py -3.13 -m venv .venv
+py -3.14 -m venv .venv
 .\.venv\Scripts\Activate.ps1
 python -m pip install -r requirements_test.txt
 ```
@@ -24,16 +23,15 @@ python -m pip install -r requirements_test.txt
 Linux or macOS:
 
 ```bash
-python3.13 -m venv .venv
+python3.14 -m venv .venv
 source .venv/bin/activate
 python -m pip install -r requirements_test.txt
 ```
 
 If PowerShell activation is unavailable, invoke
 `.\.venv\Scripts\python.exe` instead of `python`; no execution-policy change is
-needed. Native Windows supports the scaffold checks. Home Assistant integration
-tests should use Linux, WSL2, or another supported Home Assistant development
-environment once dependencies are selected.
+needed. Use Linux, WSL2, or another supported Home Assistant development
+environment to run the test suite.
 
 ## Checks
 
@@ -42,18 +40,17 @@ Run the same local checks used by CI:
 ```bash
 python scripts/release.py check
 python -m ruff check .
-python -m ruff format --check .
+python -m ruff format --check --exclude '*.md' .
 python -m pytest tests/ --cov=scripts --cov-report=term-missing
 ```
 
 Use `python -m ruff format .` to apply formatting. Review any automatic lint fixes
-before committing. Once integration validation is enabled, add
-`--cov=custom_components/sh_chore_tracker` to the pytest command to match CI coverage.
+before committing. CI also measures coverage for
+`custom_components/sh_chore_tracker`.
 
-CI also runs hassfest on imported integration files and HACS validation when the
-repository is public. A green scaffold check does not mean the integration has
-been tested. The readiness gate remains disabled until the maintainer completes
-the import and validation checklist.
+CI also runs hassfest on the integration and HACS validation when the repository
+is public. Passing automated checks does not replace a live Home Assistant
+upgrade test; use a disposable instance for migration validation.
 
 ## Testing In Home Assistant
 

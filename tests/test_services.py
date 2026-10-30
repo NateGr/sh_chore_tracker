@@ -991,7 +991,7 @@ class TestHubServices:
             "pattern_interval": 7,
             "interval_unit": "days",
             "assigned_person": "none",
-            "first_occurrence_date": date(2026, 10, 10),
+            "first_occurrence_date": date.today() + timedelta(days=7),
         }
 
         await _handle_create_chore(hass, call)
@@ -1000,7 +1000,9 @@ class TestHubServices:
         assert subentry.subentry_type == "chore"
         assert subentry.title == "Water plants"
         assert subentry.data["pattern_interval"] == 7
-        assert subentry.data["first_occurrence_date"] == "2026-10-10"
+        assert (
+            subentry.data["first_occurrence_date"] == call.data["first_occurrence_date"].isoformat()
+        )
         assert subentry.unique_id
 
     def test_list_my_chores_filters_by_person(self):

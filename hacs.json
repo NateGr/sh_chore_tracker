@@ -1,4 +1,5 @@
 {
   "name": "SmartHass Chore Tracker",
-  "content_in_root": false
+  "content_in_root": false,
+  "homeassistant": "2026.9.0"
 }

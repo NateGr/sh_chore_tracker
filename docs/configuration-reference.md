@@ -6,7 +6,7 @@ This document describes the Chore Tracker household hub and its chore subentry f
 
 Use the Home Assistant UI for normal setup and edits. YAML examples in this document are illustrative only.
 
-The hub implementation uses native Home Assistant config subentries and therefore requires Home Assistant 2025.1 or newer. The minimum supported version and startup migration behavior have not yet been verified. Back up Home Assistant configuration and storage before attempting an upgrade.
+The hub uses native Home Assistant config subentries and requires Home Assistant 2026.9.0 or newer. Back up Home Assistant configuration and storage before installing or upgrading. Test upgrades from an existing Chore Tracker installation in a disposable Home Assistant instance before applying them to a live household.
 
 ## Configuration Methods
 

@@ -111,7 +111,7 @@ def imported_repository(repository):
     write_file(
         repository,
         "requirements_test.txt",
-        "pytest-homeassistant-custom-component==0.0.0\n",
+        "homeassistant==2026.9.0\n",
     )
     write_file(
         repository,
@@ -120,7 +120,7 @@ def imported_repository(repository):
             {
                 "name": "SmartHass Chore Tracker",
                 "content_in_root": False,
-                "homeassistant": "2026.3.0",
+                "homeassistant": "2026.9.0",
             }
         ),
     )
@@ -161,6 +161,7 @@ def test_wrong_manifest_metadata(imported_repository, field):
     "changes",
     [
         {"homeassistant": ""},
+        {"homeassistant": "2026.3.0"},
         {"zip_release": True},
         {"filename": "chore_tracker.zip"},
         {"name": "wrong"},
@@ -176,9 +177,9 @@ def test_wrong_hacs_metadata(imported_repository, changes):
         check_readiness(imported_repository)
 
 
-def test_missing_ha_test_dependency(imported_repository):
+def test_missing_homeassistant_test_dependency(imported_repository):
     write_file(imported_repository, "requirements_test.txt", "pytest==9.1.1\n")
-    with pytest.raises(ValueError, match="Pin a verified"):
+    with pytest.raises(ValueError, match="Pin Home Assistant"):
         check_readiness(imported_repository)
 
 
@@ -189,7 +190,9 @@ def test_readiness_requires_boolean(repository):
 
 
 def run_git(root, *arguments):
-    return subprocess.check_output(["git", *arguments], cwd=root, text=True).strip()
+    return subprocess.check_output(
+        ["git", "-c", "safe.bareRepository=all", *arguments], cwd=root, text=True
+    ).strip()
 
 
 @pytest.fixture

@@ -509,6 +509,8 @@ class RecurrenceEngine:
 
 _LOGGER = logging.getLogger(__name__)
 
+CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
+
 PLATFORMS: list[Platform] = [Platform.SENSOR, Platform.BUTTON]
 
 # Update interval for coordinator
@@ -962,7 +964,7 @@ class ChoreCoordinator(DataUpdateCoordinator):
                     if key in datetime_keys and value:
                         try:
                             state[key] = datetime.fromisoformat(value)
-                        except (ValueError, TypeError):
+                        except ValueError, TypeError:
                             continue
                     else:
                         state[key] = value
