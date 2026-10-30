@@ -1,6 +1,9 @@
 {
   "domain": "sh_chore_tracker",
   "name": "SmartHass Chore Tracker",
+  "categories": [
+    "productivity_information.calendars_todos"
+  ],
   "codeowners": [
     "@NateGr"
   ],
