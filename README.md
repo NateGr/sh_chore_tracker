@@ -151,20 +151,11 @@ instance. Completion, snooze, skip, restore, reassignment, schedule reset, and
 overdue transitions also emit `sh_chore_tracker_*` events; see the service
 reference for event names and payloads.
 
-## Upgrading
+## Updates
 
-The first public release supports fresh installations and existing **version-3
-household hubs**. Older helper/per-chore layouts and unsupported entry versions
-are rejected without importing, rewriting, or deleting their configuration or
-state. Restore the prior integration version to access an unsupported existing
-installation; do not delete its entries or storage just to bypass this check.
-
-Back up your Home Assistant configuration before upgrading. Keep only one
-installation of the integration active; do not install copies from multiple
-repositories at the same time. The integration domain remains `sh_chore_tracker`.
-Do not delete existing Home Assistant integration entries when switching
-repositories. Version-3 hubs retain their storage keys, chore IDs, and runtime
-state. Backups remain necessary; unit-test coverage is not a live-upgrade test.
+Before installing future updates, back up your Home Assistant configuration and
+check the [release notes](https://github.com/NateGr/sh_chore_tracker/releases)
+for any required steps.
 
 ## Contributing And Support
 
@@ -176,5 +167,12 @@ state. Backups remain necessary; unit-test coverage is not a live-upgrade test.
   and additional automation examples.
 - [Issues](https://github.com/NateGr/sh_chore_tracker/issues): bugs and suggestions.
 - [Security policy](.github/SECURITY.md): privately report vulnerabilities.
+
+## Acknowledgements
+
+SmartHass Chore Tracker was inspired by
+[Chore Helper for Home Assistant](https://github.com/VolantisDev/ha-chore-helper).
+Thank you to VolantisDev and the project's contributors for their work on
+recurring chore management in Home Assistant.
 
 Distributed under the [MIT license](LICENSE).
