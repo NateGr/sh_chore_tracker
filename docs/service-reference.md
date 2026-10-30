@@ -492,4 +492,3 @@ script:
 - [Configuration Reference](configuration-reference.md)
 - [Contributor Guide](../CONTRIBUTING.md)
 - [Maintainer Guide](maintainer.md)
-- [Historical Documentation](legacy/README.md)

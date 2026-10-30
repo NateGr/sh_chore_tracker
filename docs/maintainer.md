@@ -1,88 +1,39 @@
 # Maintainer Guide
 
-## Current State
+## Supported Baseline
 
-The hub integration package, tests, and branding have been imported and adapted
-to the `sh_chore_tracker` domain. The test suite pins Home Assistant 2026.9.0, the
-selected minimum supported version. Live upgrade validation is deferred by
-maintainer decision; this is accepted risk, not a test pass. The maintainer
-confirms ownership of the bundled icons. The maintainer has authorized resuming
-release preparation and making the repository public after the publication
-audit. Do not treat deferred disposable tests as passed.
+The integration supports fresh installations and existing version-3 household
+hubs on Home Assistant 2026.9.0 or newer. Older helper/per-chore layouts and
+unsupported entry versions are rejected without rewriting or deleting data.
+Preserve the `sh_chore_tracker` domain, entry version, stable chore IDs, storage
+keys, and persisted runtime state when changing the implementation.
 
-The first public release supports fresh installs and existing version-3 hubs.
-Legacy helper/per-chore import has been removed. Keep entry version 3, stable
-IDs, hub storage keys, current persistence safeguards, and summary maintenance.
-Unsupported layouts/versions are rejected without rewriting or deleting data.
+CI uses Ubuntu 24.04 and Python 3.14.2 with Home Assistant pinned to the minimum
+supported version. When changing that baseline, keep the setup-python steps,
+Ruff target, test requirements, HACS metadata, and user documentation aligned.
 
-CI and release validation use Ubuntu 24.04 with Python 3.14.2. Keep the runner
-version pinned: GitHub's Python 3.14.2 builds are not available for Ubuntu 26.04.
-Check the setup-python version manifest before updating either pin.
+Runtime files belong in `custom_components/sh_chore_tracker`. HACS uses tagged
+repository files; no custom ZIP release is needed. GitHub release notes record
+release changes and any compatibility limitations.
 
-The source repository's docs, user stories, and backlog snapshots are preserved
-in the [legacy archive](legacy/README.md). They span several architectures and
-should be triaged against the current hub code before being treated as active work.
+## Validation
 
-## First Production Release Checklist
+Follow the [contributor checks](../CONTRIBUTING.md) and run:
 
-See the [release review and remediation plan](release-readiness-review.md) for
-findings, acceptance criteria, test evidence, and implementation status. Archive
-completion claims are not current release evidence.
+```bash
+python scripts/release.py check --require-integration
+```
 
-- [x] Import the hub source/tests/assets with the preserved `sh_chore_tracker`
-  identity, service/event prefixes, entity unique IDs, and storage keys.
-- [x] Align the Home Assistant test pin and `hacs.json` minimum at 2026.9.0.
-- [x] Establish a full local Linux test baseline and passing import PR CI.
-- [x] Implement the current correctness/docs remediation and rerun local checks,
-  including registered service and example validation (313 tests, 91% combined
-  coverage in WSL Python 3.14.4/HA 2026.9.0; see the review report).
-- [x] Commit/push the remediation and obtain fresh PR CI/hassfest results on
-  that exact commit: `f7fbba4`, [CI run 40993601130](https://github.com/NateGr/sh_chore_tracker/actions/runs/40993601130).
-- [ ] Record clean-install and existing-version-3-hub reload results on a disposable
-  Home Assistant instance, including reload and restart persistence.
-  **Deferred by maintainer decision on 2026-10-29:** proceed with live-environment
-  validation instead; this is accepted risk, not a test pass. The reported
-  production import does not independently verify the later remediation commit.
-  Back up before live changes; see the review's risk-acceptance record.
-- [ ] Establish branding image ownership/license and complete the files/history
-  audit for secrets, household data, private URLs, and attribution.
-  **Partial evidence, 2026-10-29:** maintainer confirms owning/creating the icons;
-  Gitleaks scanned 17 local commits with no leaks. Broader privacy/attribution
-  review is not yet signed off.
-- [ ] Configure the main-only release environment, release App, required checks,
-  and enforceable branch/tag rules; verify permissions and merge protection.
-- [ ] Merge the reviewed, passing import/fix PR into main.
-- [ ] After publication-audit sign-off, enable public HACS validation and run a
-  release dry run. Verify App permissions separately; dry runs skip App pushes.
-- [ ] Verify recovery/invalid-version/stale-main/tag-collision behavior in an
-  appropriate controlled context without moving published production tags.
-- [ ] Confirm the old release/install baseline, publish a higher stable version,
-  and verify tagged HACS/manual installation and documented migration steps.
-
-The 2026-10-29 review found a private repository and no release environments.
-Rulesets were unavailable under the current private-repository plan. Recheck
-these live settings before acting; no App/bypass setup is implied by these docs.
-The earlier keep-private pause was superseded by explicit authorization to
-complete the first production release and make the repository public after the
-publication audit. Verify the release environment/App and protection gates
-before publication; authorization does not itself configure those settings.
-
-Keep `tool.smarthass.integration-ready = true` only while automated integration
-tests and metadata validation pass. This enables validation; it does not certify
-live upgrades, licensing, or hosted permissions. If supported Python changes,
-update both setup-python steps, the Ruff target, and contributor instructions.
-Keep the HA test dependency, HACS minimum, and README aligned.
-
-Keep runtime files inside `custom_components/sh_chore_tracker`; no custom ZIP
-release is needed. Retain historical changelogs as snapshots; GitHub release
-notes are the source of new release history. Do not import old Git history,
-development HA configuration, tokens, logs, or editor/agent tooling.
+Keep `tool.smarthass.integration-ready = true` only while integration tests and
+metadata checks pass. This flag is not proof of live installation, licensing,
+or hosted permissions. Test clean installation and version-3 hub replacement,
+reload, and restart on a disposable Home Assistant instance. Back up existing
+configuration and storage before making live changes.
 
 ## GitHub Setup
 
-Hosting settings are not configured by these files. Do not enable required
-checks until the workflow has run and GitHub
-offers the correct check name.
+Configure hosting settings separately from the repository files. Verify the
+actual CI check name in GitHub before making it required.
 
 ### Repository
 
@@ -91,16 +42,9 @@ Use `main` as the default branch. Add a description and topics such as
 merges, and automatic deletion of merged branches. Disable unused wiki/projects.
 Do not auto-merge dependency updates.
 
-#### Security settings status
-
-- [x] Dependency graph enabled.
-- [x] Dependabot vulnerability reporting enabled.
-- [ ] Check whether Dependabot security updates are available and enable them
-  if appropriate; review update PRs rather than enabling auto-merge.
-- [ ] Private vulnerability reporting was not visible in repository settings;
-  revisit after confirming plan/organization availability.
-- [ ] Secret scanning and push protection were not available in repository
-  settings; revisit after confirming plan/organization availability.
+Review dependency alerts, private vulnerability reporting, secret scanning,
+and push protection according to the repository's plan and visibility. Follow
+the [security policy](../.github/SECURITY.md) for vulnerability reports.
 
 ### Release App
 
@@ -184,32 +128,20 @@ Do not use a fresh default patch release to recover a publishing failure: that
 would create another version. Missing App credentials, failed checks, duplicate
 tags, and invalid versions stop the release rather than weakening the gates.
 
-## Public Cutover
+## Release Verification
 
-- Audit copied files and this repo's history for secrets, household data, private
-  URLs, destructive dev scripts, and licensing. Copying files instead of old Git
-  history reduces accidental disclosure. Rotate any exposed secrets; ignoring or
-  deleting them is not sufficient.
-- Make the repository public only after that audit. Run CI with actual repository
-  metadata and HACS checks enabled. HACS catalog inclusion is a separate optional
-  submission; custom-repository installation does not require it.
-- Run a dry release, then publish a version higher than the actual old release
-  baseline. Check tagged HACS installation and manual installation in a disposable
-  HA instance; no production household config should be used as a test sandbox.
-- Back up an existing installation and test the repository switch. Do not delete
-  HA integration entries or `.storage`. Do not leave both repositories managing
-  `sh_chore_tracker`. HACS removal may remove installed files: test its current
-  behavior and reinstall from the new repo before restarting HA.
-- Verify entities, configuration, chores, and completion history survive. Publish
-  the exact tested migration steps; do not assume GitHub or HACS redirects them.
-- Only then update old support/install links, migrate essential issues, disable
-  old release automation, and archive the old repo read-only. If it remains
-  private, notify existing users directly. Preserve useful historical releases.
+Before publishing, verify a clean checkout, the full pinned Linux test suite,
+hassfest, public HACS validation, and a release dry run. Confirm required checks
+block a failing PR and the release App has only its intended bypass privileges.
+A dry run does not exercise App token creation or the production push.
 
-## Verification Before First Release
+Review licensing, release content, and Git history for secrets or household
+data. Rotate exposed credentials; deleting a file does not erase Git history.
+Keep operational release records and credentials outside the public tree.
 
-Verify a clean checkout and full HA test baseline on supported Python/Linux,
-actual fork and docs-only PR checks, a failed check blocking merge, a release dry
-run, App bypass against the rulesets, and successful HACS install/upgrade.
-Exercise invalid versions, stale-main rejection, duplicate tags, and publication
-recovery. Local scaffold tests do not prove GitHub permissions or HA compatibility.
+Exercise invalid-version rejection, stale-main rejection, tag collisions, and
+publication recovery in a controlled context without moving published tags.
+After publication, verify the release/tag SHA and tagged HACS/manual installation.
+For existing version-3 hubs, confirm entity identity, chores, assignments, counts,
+due dates, and completion history survive. Do not delete integration entries or
+storage merely to switch repositories, or install two copies of the domain.

@@ -351,4 +351,3 @@ reanchor a schedule, edit its first occurrence through the chore subentry flow.
 - [Service Reference](service-reference.md)
 - [Contributor Guide](../CONTRIBUTING.md)
 - [Maintainer Guide](maintainer.md)
-- [Historical Requirements And Architecture](legacy/README.md)
