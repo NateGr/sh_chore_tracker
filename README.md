@@ -153,12 +153,18 @@ reference for event names and payloads.
 
 ## Upgrading
 
+The first public release supports fresh installations and existing **version-3
+household hubs**. Older helper/per-chore layouts and unsupported entry versions
+are rejected without importing, rewriting, or deleting their configuration or
+state. Restore the prior integration version to access an unsupported existing
+installation; do not delete its entries or storage just to bypass this check.
+
 Back up your Home Assistant configuration before upgrading. Keep only one
 installation of the integration active; do not install copies from multiple
 repositories at the same time. The integration domain remains `sh_chore_tracker`.
 Do not delete existing Home Assistant integration entries when switching
-repositories. Tested migration instructions will be published before the old
-repository is retired.
+repositories. Version-3 hubs retain their storage keys, chore IDs, and runtime
+state. Backups remain necessary; unit-test coverage is not a live-upgrade test.
 
 ## Contributing And Support
 

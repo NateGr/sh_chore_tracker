@@ -517,123 +517,34 @@ PLATFORMS: list[Platform] = [Platform.SENSOR, Platform.BUTTON]
 UPDATE_INTERVAL = timedelta(minutes=15)
 
 
+def _is_supported_hub(entry: ConfigEntry) -> bool:
+    return entry.version == CONFIG_ENTRY_VERSION and entry.data.get(CONF_HUB_ENTRY) is True
+
+
 async def async_migrate_entry(hass: HomeAssistant, config_entry: ConfigEntry) -> bool:
-    """Migrate config entry metadata before the integration-level hub migration."""
-    if config_entry.version < CONFIG_ENTRY_VERSION:
-        hass.config_entries.async_update_entry(config_entry, version=CONFIG_ENTRY_VERSION)
+    """Reject unsupported layouts without changing stored entries."""
+    if _is_supported_hub(config_entry):
         return True
-    return config_entry.version == CONFIG_ENTRY_VERSION
+    _LOGGER.error(
+        "Only version-%s household hubs are supported; configuration was not modified. "
+        "Restore the previous integration to access an older installation",
+        CONFIG_ENTRY_VERSION,
+    )
+    return False
 
 
 async def async_setup(hass: HomeAssistant, _config: ConfigType) -> bool:
-    """Consolidate legacy per-chore config entries into the household hub."""
-    await _async_migrate_legacy_entries(hass)
-    return True
-
-
-async def _async_migrate_legacy_entries(hass: HomeAssistant) -> None:
-    """Import legacy chore entries before their platforms are set up."""
+    """Accept fresh installations or a single existing version-3 hub."""
     entries = hass.config_entries.async_entries(DOMAIN)
-    hubs = [entry for entry in entries if entry.data.get(CONF_HUB_ENTRY)]
-    legacy_entries = [entry for entry in entries if not entry.data.get(CONF_HUB_ENTRY)]
-    if not legacy_entries:
-        return
-    if len(hubs) > 1:
+    if any(not _is_supported_hub(entry) for entry in entries):
+        raise HomeAssistantError(
+            "Only version-3 household hubs are supported. Helper and per-chore layouts "
+            "are not imported; existing configuration and state were not modified. "
+            "Restore the previous integration to access an older installation."
+        )
+    if len(entries) > 1:
         raise HomeAssistantError("Multiple Chore Tracker hubs are configured")
-
-    hub_entry = hubs[0] if hubs else legacy_entries[0]
-    legacy_configs = {
-        entry.entry_id: {**dict(entry.data), **dict(entry.options)} for entry in legacy_entries
-    }
-    state_store = Store(hass, 1, f"sh_chore_tracker_hub_{hub_entry.entry_id}")
-    stored = await state_store.async_load() or {}
-    chore_states = dict(stored.get("chores", {}))
-    entity_registry = er.async_get(hass)
-    device_registry = dr.async_get(hass)
-
-    for legacy_entry in legacy_entries:
-        chore_id = legacy_entry.entry_id
-        config = legacy_configs[chore_id]
-        config.pop(CONF_HUB_ENTRY, None)
-        if CONF_CHORE_NAME not in config and "name" in config:
-            config[CONF_CHORE_NAME] = config.pop("name")
-        if CONF_CHORE_DESCRIPTION not in config and "description" in config:
-            config[CONF_CHORE_DESCRIPTION] = config.pop("description")
-        if CONF_ASSIGNED_PERSON not in config and "assigned_to" in config:
-            config[CONF_ASSIGNED_PERSON] = config.pop("assigned_to")
-        if CONF_PATTERN_INTERVAL not in config and "interval_days" in config:
-            config[CONF_PATTERN_INTERVAL] = config.pop("interval_days")
-        if config.get(CONF_RECURRENCE_TYPE) == "fixed":
-            config[CONF_RECURRENCE_TYPE] = RECURRENCE_TYPE_INTERVAL
-        subentry = next(
-            (
-                item
-                for item in hub_entry.subentries.values()
-                if item.subentry_type == SUBENTRY_TYPE_CHORE and item.unique_id == chore_id
-            ),
-            None,
-        )
-        if subentry is None:
-            subentry = ConfigSubentry(
-                data=MappingProxyType(config),
-                subentry_type=SUBENTRY_TYPE_CHORE,
-                title=config.get("chore_name", legacy_entry.title),
-                unique_id=chore_id,
-            )
-            hass.config_entries.async_add_subentry(hub_entry, subentry)
-
-        if chore_id not in chore_states:
-            old_store = Store(hass, 1, f"sh_chore_tracker_{chore_id}")
-            old_state = await old_store.async_load()
-            if old_state:
-                if "last_completed_date" not in old_state and "last_completed" in old_state:
-                    old_state["last_completed_date"] = old_state.pop("last_completed")
-                if "completion_count" not in old_state and "completed_count" in old_state:
-                    old_state["completion_count"] = old_state.pop("completed_count")
-                chore_states[chore_id] = old_state
-
-            await state_store.async_save({"chores": chore_states})
-
-        for entity in er.async_entries_for_config_entry(entity_registry, legacy_entry.entry_id):
-            disabled_by = entity.disabled_by
-            if disabled_by is er.RegistryEntryDisabler.CONFIG_ENTRY and not hub_entry.disabled_by:
-                disabled_by = er.RegistryEntryDisabler.USER
-            entity_registry.async_update_entity(
-                entity.entity_id,
-                config_entry_id=hub_entry.entry_id,
-                config_subentry_id=subentry.subentry_id,
-                disabled_by=disabled_by,
-            )
-
-        device = device_registry.async_get_device_by_identifier(
-            (DOMAIN, chore_id), legacy_entry.entry_id
-        )
-        if device is not None:
-            disabled_by = device.disabled_by
-            if disabled_by is dr.DeviceEntryDisabler.CONFIG_ENTRY and not hub_entry.disabled_by:
-                disabled_by = dr.DeviceEntryDisabler.USER
-            device_registry.async_update_device(
-                device.id,
-                new_config_entry_id=hub_entry.entry_id,
-                new_config_subentry_id=subentry.subentry_id,
-                disabled_by=disabled_by,
-            )
-
-    await state_store.async_save({"chores": chore_states})
-    hass.config_entries.async_update_entry(
-        hub_entry,
-        data={CONF_HUB_ENTRY: True},
-        options={},
-        title="Chore Tracker",
-        unique_id=HUB_UNIQUE_ID,
-        version=CONFIG_ENTRY_VERSION,
-    )
-
-    for legacy_entry in legacy_entries:
-        if legacy_entry.entry_id != hub_entry.entry_id:
-            await hass.config_entries.async_remove(legacy_entry.entry_id)
-        old_store = Store(hass, 1, f"sh_chore_tracker_{legacy_entry.entry_id}")
-        await old_store.async_remove()
+    return True
 
 
 async def _async_update_listener(hass: HomeAssistant, entry: ConfigEntry) -> None:
@@ -689,6 +600,10 @@ def _async_update_hub_entities(
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Set up the Chore Tracker household hub."""
+    if not _is_supported_hub(entry):
+        raise HomeAssistantError(
+            "Only version-3 household hubs are supported; existing data was not modified"
+        )
     coordinator = ChoreCoordinator(hass, entry)
 
     # Restore persisted runtime state before first refresh so the entity

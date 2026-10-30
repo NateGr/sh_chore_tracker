@@ -6,18 +6,20 @@ Reviewed commit: `655547657c649a0ec34646f7e3a97312b0a31099`, branch
 
 ## Recommendation
 
-**Hold production publication pending live validation and hosted release gates.**
+**Release preparation resumed; publication still requires the remaining gates.**
 The original review found a lifecycle defect and inaccurate active documentation.
-Steps 1-3 are now remediated locally, and step 4's local automated checks pass;
-fresh hosted CI must still validate the resulting commit. Live upgrade/install
-evidence and release infrastructure remain outstanding. No repository settings,
+Steps 1-4 are complete, including fresh hosted CI on the remediation commit.
+Disposable live validation is deferred by maintainer decision as recorded below;
+this is accepted risk, not a test pass. Publication audits and release setup
+remain outstanding. No repository settings,
 PR merge, release dispatch, or publication was performed.
 
 ## Remediation Progress
 
 The review/plan was committed separately as `da9b62d`. Runtime, tests, and active
-documentation changes described here are the subsequent uncommitted worktree;
-the baseline commit and CI evidence below do not describe that newer candidate.
+documentation remediation was committed and pushed as `f7fbba4`. Fresh
+[CI run 40993601130](https://github.com/NateGr/sh_chore_tracker/actions/runs/40993601130)
+passed for that exact SHA. Older evidence below describes the original baseline.
 
 | Step | Current status | Evidence |
 | --- | --- | --- |
@@ -25,9 +27,41 @@ the baseline commit and CI evidence below do not describe that newer candidate.
 | 1: Restore correctness | Implemented and locally verified | Regression first failed at the original status guard, then passed. Coverage includes midnight rollover, persisted reload, inclusive 24-hour boundary/expiry, repeat restore, later actions, and latest-skip semantics. |
 | 2: Service contracts/tests | Implemented and locally verified | Person-domain rejection before mutation; real HA registry tests cover all nine services, seven action schemas/dispatch paths, defaults, recurrence limits, admin create, and response-only listing. |
 | 3: Active documentation | Corrected and locally verified | 31 YAML examples parse; active relative links resolve; regression tests validate literal service data against registered schemas, response capture, sensor-state use, and auto-entities keys. Dynamic Jinja values require live validation. |
-| 4: Automated candidate gate | Local portion passed; fresh hosted CI pending | 313 tests passed, 91% combined coverage; lint, formatting, and metadata-readiness passed in WSL Python 3.14.4/HA 2026.9.0. Same single upstream HTTP deprecation warning. |
-| 5: Live HA/publication audit | Pending | No live instance, migration sign-off, asset provenance sign-off, or full secret/history audit was performed in this remediation. |
-| 6: Hosted release/publication | Pending | No GitHub settings changed, additional candidate commit/push performed, or release dispatched. |
+| 4: Automated candidate gate | Complete for f7fbba4 | 313 local tests passed, 91% combined coverage; lint/format/readiness and fresh hosted CI passed. Upstream HTTP and action-runtime deprecation warnings are non-blocking. |
+| 5: Live HA/publication audit | Disposable validation deferred; audit partially completed | Maintainer accepts live-environment validation instead and confirms ownership of the icons. Gitleaks found no leaks in 17 local commits; broader privacy/attribution review and live outcomes remain unverified. |
+| 6: Hosted release/publication | Preparation reauthorized; configuration pending | Maintainer authorizes public visibility after the audit and reports an installed release App. Environment credentials, rulesets, dry run, and publication still require verification. |
+
+### First Public Release Baseline And Renewed Authorization
+
+The maintainer subsequently authorized completing the first production release
+and public visibility after the audit, and reports the release GitHub App has
+already been created/installed. This supersedes the earlier publication pause.
+Actual environment credentials, protections, public HACS validation, and release
+execution must still be verified; the report of an existing App is not proof
+that the workflow can use it.
+
+The first public baseline is fresh installation or an existing version-3 hub.
+The automatic helper/per-chore importer is removed. Unsupported layouts and
+entry versions are rejected without updating/removing entries or touching their
+stores. Entry version 3, stable chore IDs, hub storage keys, current state-loading
+safeguards, and summary maintenance remain. Tests cover new setup, unsupported
+versions/layouts, duplicate hubs, and an existing hub's identity/state round trip.
+Legacy-to-hub migration is no longer a first-release support claim or gate.
+No changes were made to the original `C:\git\ha-chore-tracker` checkout.
+
+Local verification of this narrower baseline: **322 tests passed, 92% combined
+coverage**, clean Ruff lint/format and readiness checks, with the same upstream
+HTTP deprecation warning. The existing version-3 hub round-trip test verifies
+stable entry/subentry/chore IDs, assignment, due/completion dates and count,
+and the unchanged `sh_chore_tracker_hub_<entry_id>` storage key. Unsupported
+layouts are rejected before state-store access or entry mutation.
+
+Publication checks reran Gitleaks across 17 local commits with no leaks and
+checked tracked text for private-network addresses and credential-bearing URLs
+with no hits. The tracked file inventory contains integration code, tests,
+tooling, and documentation rather than Home Assistant configuration/storage.
+Icon ownership is attested by the maintainer. These are scoped audit results,
+not a guarantee that every conceivable disclosure has been detected.
 
 The implementation keeps normal status rollover and restores based on saved
 skip eligibility. Completion, snooze, reset, and explicit first-date reanchoring
@@ -35,9 +69,36 @@ invalidate a previous skip; reassignment preserves it. A second skip records
 its own original due date. Calendar multiplier UI scope was not expanded:
 documentation now distinguishes current UI controls from service capabilities.
 
-Next gate: commit/push the remediation with maintainer authorization and obtain
-fresh PR CI/hassfest results for that exact commit, then begin step 5. The
-existing green CI run below covers only the original reviewed baseline.
+### Maintainer Risk Acceptance - 2026-10-29
+
+The maintainer reports confidence in the imported baseline already running in
+production and elects to defer disposable install/upgrade testing, proceeding
+to release preparation and later live-environment validation. This is not a
+verified pass, nor confirmation that production runs `f7fbba4`, which includes
+subsequent restore/validation fixes. Live installation, migration, reload, and
+restart outcomes remain unverified. Take a verified backup before live changes
+and retain the prior package/version for recovery; this review does not certify
+rollback of a migrated storage/configuration state.
+
+Next gates: publication audit, visibility/plan decision, and release App,
+environment, and branch/tag protection setup. No production deployment,
+visibility change, or publication is authorized merely by this risk record.
+
+### Publication Decision And Audit Update - 2026-10-29
+
+- The maintainer explicitly selected **keep private for now; pause publication
+  setup**. Do not change visibility or create hosted release infrastructure as
+  part of this update. Revisit the GitHub plan/visibility limitations when the
+  maintainer authorizes resuming setup.
+- The maintainer confirms owning/creating the bundled icons. This is recorded
+  owner attestation, not an independent image-provenance investigation.
+- Ran `gitleaks git . --redact=100 --no-banner --log-opts=--all`: **17 commits
+  scanned, no leaks found, exit 0**. This scans locally available Git history,
+  not hidden remote refs, GitHub settings, external deployments, or every kind
+  of household/private information. Broader privacy and attribution review is
+  still required before public cutover.
+- No production HA deployment or runtime test was performed. No visibility,
+  environment, App, protection, merge, or release operation was performed.
 
 ## Verification Evidence
 
@@ -276,8 +337,9 @@ use active docs and a separately triaged current backlog for future work.
 
 ## Remediation Plan
 
-Plan status: phases 0-3 complete locally; phase 4's local checks passed, with
-fresh hosted CI still pending. Phases 5-6 remain pending. The detailed phase
+Plan status: phases 0-4 complete for `f7fbba4`. Phase 5's disposable testing is
+deferred by maintainer decision; its publication audit is partially complete.
+Phase 6 is paused by the maintainer's keep-private decision. The detailed phase
 descriptions below retain the intended scope and acceptance criteria.
 GitHub settings, visibility changes, credentials, merging, and publication
 require explicit maintainer action or approval; this plan does not authorize
@@ -379,7 +441,7 @@ structure matches upstream; no active local file links are broken. Reuse the
 existing YAML tooling for focused regression tests where practical rather than
 adding a documentation framework unnecessarily.
 
-### Phase 4: Automated Candidate Gate - Local Checks Passed
+### Phase 4: Automated Candidate Gate - Complete For f7fbba4
 
 Run the full Linux suite with the pinned Home Assistant baseline, coverage,
 Ruff lint/format checks, release-readiness check, and current documentation
@@ -393,7 +455,7 @@ review remain open. Record the candidate SHA, versions, commands, results, and
 any remaining limitations; do not carry the baseline's 259-test count forward
 as evidence for an untested later commit.
 
-### Phase 5: Live Home Assistant Evidence And Publication Audit
+### Phase 5: Live Validation Deferred; Publication Audit Pending
 
 Owner: maintainer, with implementation assistance as needed. Use a disposable
 Home Assistant 2026.9 instance and backed-up test data, not a production household.
@@ -413,7 +475,7 @@ Acceptance: attach a runtime matrix tied to the candidate SHA, explicit outcomes
 for each scenario, image provenance, and publication-audit sign-off. Historical
 May reports do not satisfy this phase.
 
-### Phase 6: Hosted Release Setup And First Publication
+### Phase 6: Hosted Release Setup And First Publication - Reauthorized
 
 Owner: maintainer. The latest review found a private repo, zero environments,
 and unsupported private-repo rulesets under the current plan; recheck live
@@ -447,9 +509,11 @@ metadata check or dry run is green.
 ## Current Worktree And Next Action
 
 The rogue old-name directory is absent. The original review/plan is committed
-as `da9b62d`. The subsequent runtime/test/docs remediation is uncommitted and
-has not been pushed. No GitHub configuration, PR merge, or publication occurred.
+as `da9b62d`; remediation is committed/pushed as `f7fbba4`, with fresh CI passing.
+No GitHub configuration, PR merge, or publication occurred. The current status
+and risk-acceptance documentation update is not yet committed.
 
-**Next action:** authorize a remediation commit/push and verify fresh CI on that
-candidate. Then perform the disposable live Home Assistant validation and
-publication audit in phase 5 before proceeding to release setup/publication.
+**Next action:** await explicit maintainer authorization to resume publication
+setup. Keep the repository private; do not merge or publish automatically.
+Record actual live validation results when available, rather than treating
+the deferred disposable tests as passed.

@@ -4,15 +4,16 @@ from datetime import date, datetime
 from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
+from homeassistant.exceptions import HomeAssistantError
 
 from custom_components.sh_chore_tracker import (
     PLATFORMS,
     ChoreCoordinator,
     RecurrenceEngine,
     _async_ensure_summary_subentry,
-    _async_migrate_legacy_entries,
     _async_update_hub_entities,
     async_migrate_entry,
+    async_setup,
     async_setup_entry,
     async_unload_entry,
 )
@@ -27,7 +28,6 @@ from custom_components.sh_chore_tracker.const import (
     EVENT_CHORE_OVERDUE,
     HUB_UNIQUE_ID,
     MONTHLY_MODE_ORDINAL_WEEKDAY,
-    SUBENTRY_TYPE_CHORE,
     SUBENTRY_TYPE_SUMMARY,
 )
 
@@ -49,6 +49,8 @@ async def test_setup_entry():
 
     entry = Mock()
     entry.entry_id = "test_entry"
+    entry.version = 3
+    entry.data = {"is_hub_entry": True}
     summary = Mock(subentry_id="summary_subentry")
     entry.get_subentries_of_type.return_value = [summary]
 
@@ -295,8 +297,71 @@ async def test_unload_entry():
 
 
 @pytest.mark.asyncio
-async def test_async_migrate_entry_v1_to_v3_bumps_version():
-    """A helper-era entry migrates to the hub schema version."""
+@pytest.mark.parametrize("existing_hub", [False, True])
+async def test_setup_accepts_fresh_or_current_hub_without_modification(existing_hub):
+    hass = Mock()
+    entry = Mock(version=3, data={"is_hub_entry": True})
+    hass.config_entries.async_entries.return_value = [entry] if existing_hub else []
+    with patch("custom_components.sh_chore_tracker.Store") as store:
+        assert await async_setup(hass, {}) is True
+    store.assert_not_called()
+    hass.config_entries.async_update_entry.assert_not_called()
+    hass.config_entries.async_add_subentry.assert_not_called()
+    hass.config_entries.async_remove.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_setup_rejects_multiple_hubs_without_modification():
+    hass = Mock()
+    hass.config_entries.async_entries.return_value = [
+        Mock(version=3, data={"is_hub_entry": True}),
+        Mock(version=3, data={"is_hub_entry": True}),
+    ]
+    with pytest.raises(HomeAssistantError, match="Multiple"):
+        await async_setup(hass, {})
+    hass.config_entries.async_remove.assert_not_called()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("data", [{}, {"is_hub_entry": False}, {"is_hub_entry": "true"}])
+async def test_per_chore_layout_is_rejected_without_state_access(data):
+    hass = Mock()
+    entry = Mock(version=3, data=data)
+    hass.config_entries.async_entries.return_value = [entry]
+    with (
+        patch("custom_components.sh_chore_tracker.Store") as store,
+        patch("custom_components.sh_chore_tracker.ChoreCoordinator") as coordinator,
+    ):
+        assert await async_migrate_entry(hass, entry) is False
+        with pytest.raises(HomeAssistantError, match="version-3"):
+            await async_setup(hass, {})
+        with pytest.raises(HomeAssistantError, match="version-3"):
+            await async_setup_entry(hass, entry)
+    store.assert_not_called()
+    coordinator.assert_not_called()
+    hass.config_entries.async_update_entry.assert_not_called()
+    hass.config_entries.async_add_subentry.assert_not_called()
+    hass.config_entries.async_remove.assert_not_called()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("version", [1, 2, 4])
+async def test_setup_rejects_unsupported_versions_without_modification(version):
+    hass = Mock()
+    entry = Mock(version=version, data={"is_hub_entry": True})
+    hass.config_entries.async_entries.return_value = [entry]
+    with patch("custom_components.sh_chore_tracker.Store") as store:
+        with pytest.raises(HomeAssistantError, match="version-3"):
+            await async_setup(hass, {})
+    store.assert_not_called()
+    hass.config_entries.async_update_entry.assert_not_called()
+    hass.config_entries.async_add_subentry.assert_not_called()
+    hass.config_entries.async_remove.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_async_migrate_entry_rejects_v1_without_mutation():
+    """An unsupported version is not silently relabeled as a current hub."""
     hass = Mock()
     entry = Mock()
     entry.version = 1
@@ -305,8 +370,8 @@ async def test_async_migrate_entry_v1_to_v3_bumps_version():
     with patch.object(hass.config_entries, "async_update_entry") as mock_update:
         result = await async_migrate_entry(hass, entry)
 
-    assert result is True
-    mock_update.assert_called_once_with(entry, version=3)
+    assert result is False
+    mock_update.assert_not_called()
 
 
 @pytest.mark.asyncio
@@ -316,6 +381,7 @@ async def test_async_migrate_entry_already_v3_is_noop():
     entry = Mock()
     entry.version = 3
     entry.entry_id = "test_entry"
+    entry.data = {"is_hub_entry": True}
 
     with patch.object(hass.config_entries, "async_update_entry") as mock_update:
         result = await async_migrate_entry(hass, entry)
@@ -353,84 +419,51 @@ async def test_hub_coordinator_initializes_all_chore_subentries():
 
 
 @pytest.mark.asyncio
-async def test_legacy_migration_imports_config_state_and_entity_ownership():
+async def test_existing_v3_hub_preserves_identity_and_state_across_reload():
     hass = Mock()
-    legacy_entry = Mock()
-    legacy_entry.entry_id = "legacy_chore_id"
-    legacy_entry.title = "Chore: Laundry"
-    legacy_entry.data = {"name": "Laundry", "recurrence_type": "interval"}
-    legacy_entry.options = {"interval_days": 7, "assigned_to": "person.alice"}
-    legacy_entry.subentries = {}
-    legacy_entry.disabled_by = None
-    hass.config_entries.async_entries.return_value = [legacy_entry]
-
-    def add_subentry(entry, subentry):
-        entry.subentries[subentry.subentry_id] = subentry
-
-    hass.config_entries.async_add_subentry.side_effect = add_subentry
-    entity = Mock()
-    entity.entity_id = "sensor.chore_laundry"
-    entity.config_subentry_id = None
-    entity.disabled_by = None
-    entity_registry = Mock()
-    device_registry = Mock()
-    device_registry.async_get_device_by_identifier.return_value = None
-    state_stores = {}
-
-    def make_store(_hass, _version, key):
-        store = Mock()
-        store.async_load = AsyncMock(
-            return_value=(
-                {
-                    "next_due_date": "2026-10-10T00:00:00+00:00",
-                    "last_completed": "2026-10-03T00:00:00+00:00",
-                    "completed_count": 4,
-                }
-                if key == "sh_chore_tracker_legacy_chore_id"
-                else None
-            )
-        )
-        store.async_save = AsyncMock()
-        store.async_remove = AsyncMock()
-        state_stores[key] = store
-        return store
-
-    with (
-        patch("custom_components.sh_chore_tracker.Store", side_effect=make_store),
-        patch(
-            "custom_components.sh_chore_tracker.er.async_get",
-            return_value=entity_registry,
-        ),
-        patch(
-            "custom_components.sh_chore_tracker.er.async_entries_for_config_entry",
-            return_value=[entity],
-        ),
-        patch(
-            "custom_components.sh_chore_tracker.dr.async_get",
-            return_value=device_registry,
-        ),
-    ):
-        await _async_migrate_legacy_entries(hass)
-
-    hass.config_entries.async_entries.assert_called_once_with(DOMAIN)
-    subentry = next(iter(legacy_entry.subentries.values()))
-    assert subentry.subentry_type == SUBENTRY_TYPE_CHORE
-    assert subentry.unique_id == "legacy_chore_id"
-    assert subentry.data["chore_name"] == "Laundry"
-    assert subentry.data["pattern_interval"] == 7
-    assert subentry.data["assigned_person"] == "person.alice"
-    entity_registry.async_update_entity.assert_called_once_with(
-        "sensor.chore_laundry",
-        config_entry_id="legacy_chore_id",
-        config_subentry_id=subentry.subentry_id,
-        disabled_by=None,
+    entry = Mock(entry_id="existing_hub", version=3, data={"is_hub_entry": True})
+    subentry = Mock(
+        subentry_id="existing_subentry",
+        unique_id="existing_chore",
+        data={
+            "chore_name": "Laundry",
+            "assigned_person": "person.alice",
+            "first_occurrence_date": "2026-10-01",
+        },
     )
-    hub_store = state_stores["sh_chore_tracker_hub_legacy_chore_id"]
-    imported_states = hub_store.async_save.call_args.args[0]["chores"]["legacy_chore_id"]
-    assert imported_states["last_completed_date"] == "2026-10-03T00:00:00+00:00"
-    assert imported_states["completion_count"] == 4
-    hass.config_entries.async_update_entry.assert_called_once()
-    state_stores["sh_chore_tracker_legacy_chore_id"].async_remove.assert_awaited_once()
+    entry.get_subentries_of_type.return_value = [subentry]
+    hass.config_entries.async_entries.return_value = [entry]
+    stored = {
+        "chores": {
+            "existing_chore": {
+                "status": CHORE_STATUS_PENDING,
+                "next_due_date": "2026-11-05T00:00:00+00:00",
+                "last_completed_date": "2026-10-29T12:00:00+00:00",
+                "completion_count": 9,
+            }
+        }
+    }
+    store = Mock(async_load=AsyncMock(return_value=stored), async_save=AsyncMock())
+    with patch("custom_components.sh_chore_tracker.Store", return_value=store) as make_store:
+        for _attempt in range(2):
+            assert await async_setup(hass, {}) is True
+            assert await async_migrate_entry(hass, entry) is True
+            coordinator = ChoreCoordinator(hass, entry)
+            await coordinator.async_load_persisted_state()
+            state = coordinator._chores["existing_chore"]["state"]
+            assert state["next_due_date"].isoformat() == "2026-11-05T00:00:00+00:00"
+            assert state["last_completed_date"].isoformat() == "2026-10-29T12:00:00+00:00"
+            assert state["completion_count"] == 9
+            assert coordinator.chore_id_for_subentry("existing_subentry") == "existing_chore"
+            assert (
+                coordinator._chores["existing_chore"]["config"]["assigned_person"] == "person.alice"
+            )
+            await coordinator.async_save_state()
+            store.async_load.return_value = store.async_save.call_args.args[0]
+    make_store.assert_called_with(hass, 1, "sh_chore_tracker_hub_existing_hub")
+    hass.config_entries.async_update_entry.assert_not_called()
+    hass.config_entries.async_add_subentry.assert_not_called()
+    hass.config_entries.async_remove.assert_not_called()
 
 
 def _make_coordinator_for_update(state: dict) -> ChoreCoordinator:

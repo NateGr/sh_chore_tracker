@@ -4,8 +4,16 @@
 
 The hub integration package, tests, and branding have been imported and adapted
 to the `sh_chore_tracker` domain. The test suite pins Home Assistant 2026.9.0, the
-selected minimum supported version. Live upgrade behavior and the branding
-license still need maintainer verification before a production release.
+selected minimum supported version. Live upgrade validation is deferred by
+maintainer decision; this is accepted risk, not a test pass. The maintainer
+confirms ownership of the bundled icons. The maintainer has authorized resuming
+release preparation and making the repository public after the publication
+audit. Do not treat deferred disposable tests as passed.
+
+The first public release supports fresh installs and existing version-3 hubs.
+Legacy helper/per-chore import has been removed. Keep entry version 3, stable
+IDs, hub storage keys, current persistence safeguards, and summary maintenance.
+Unsupported layouts/versions are rejected without rewriting or deleting data.
 
 CI and release validation use Ubuntu 24.04 with Python 3.14.2. Keep the runner
 version pinned: GitHub's Python 3.14.2 builds are not available for Ubuntu 26.04.
@@ -28,12 +36,19 @@ completion claims are not current release evidence.
 - [x] Implement the current correctness/docs remediation and rerun local checks,
   including registered service and example validation (313 tests, 91% combined
   coverage in WSL Python 3.14.4/HA 2026.9.0; see the review report).
-- [ ] Commit/push the remediation and obtain fresh PR CI/hassfest results on
-  that exact commit. The earlier passing import CI predates these fixes.
-- [ ] Record clean-install and legacy-to-hub upgrade results on a disposable
+- [x] Commit/push the remediation and obtain fresh PR CI/hassfest results on
+  that exact commit: `f7fbba4`, [CI run 40993601130](https://github.com/NateGr/sh_chore_tracker/actions/runs/40993601130).
+- [ ] Record clean-install and existing-version-3-hub reload results on a disposable
   Home Assistant instance, including reload and restart persistence.
+  **Deferred by maintainer decision on 2026-10-29:** proceed with live-environment
+  validation instead; this is accepted risk, not a test pass. The reported
+  production import does not independently verify the later remediation commit.
+  Back up before live changes; see the review's risk-acceptance record.
 - [ ] Establish branding image ownership/license and complete the files/history
   audit for secrets, household data, private URLs, and attribution.
+  **Partial evidence, 2026-10-29:** maintainer confirms owning/creating the icons;
+  Gitleaks scanned 17 local commits with no leaks. Broader privacy/attribution
+  review is not yet signed off.
 - [ ] Configure the main-only release environment, release App, required checks,
   and enforceable branch/tag rules; verify permissions and merge protection.
 - [ ] Merge the reviewed, passing import/fix PR into main.
@@ -47,6 +62,10 @@ completion claims are not current release evidence.
 The 2026-10-29 review found a private repository and no release environments.
 Rulesets were unavailable under the current private-repository plan. Recheck
 these live settings before acting; no App/bypass setup is implied by these docs.
+The earlier keep-private pause was superseded by explicit authorization to
+complete the first production release and make the repository public after the
+publication audit. Verify the release environment/App and protection gates
+before publication; authorization does not itself configure those settings.
 
 Keep `tool.smarthass.integration-ready = true` only while automated integration
 tests and metadata validation pass. This enables validation; it does not certify
