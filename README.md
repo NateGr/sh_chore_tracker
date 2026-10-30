@@ -11,8 +11,8 @@ Requires **Home Assistant 2026.9.0 or newer**.
 - Schedule chores using interval, weekly, monthly, or yearly recurrence.
 - Assign chores to Home Assistant `person` entities.
 - Track due dates, completion counts, overdue chores, and household summaries.
-- Complete, snooze, skip, restore, and reset chores from their device buttons or
-  Home Assistant services.
+- Complete, snooze, skip, and reset chores from their device buttons or Home
+  Assistant services; restore skipped chores through the restore service.
 - Use chore services and events in automations.
 - Persist chore schedules and lifecycle state across Home Assistant restarts.
 
@@ -34,7 +34,7 @@ and install it directly.
    [GitHub Releases](https://github.com/NateGr/sh_chore_tracker/releases).
 2. Extract the archive and copy `custom_components/sh_chore_tracker` into your
    Home Assistant configuration directory at
-  `<config>/custom_components/sh_chore_tracker`. Create `custom_components` if it
+    `<config>/custom_components/sh_chore_tracker`. Create `custom_components` if it
    does not already exist.
 3. Confirm that `<config>/custom_components/sh_chore_tracker/manifest.json`
    exists, then restart Home Assistant.

@@ -15,41 +15,54 @@ The source repository's docs, user stories, and backlog snapshots are preserved
 in the [legacy archive](legacy/README.md). They span several architectures and
 should be triaged against the current hub code before being treated as active work.
 
-## Import Checklist
+## First Production Release Checklist
 
-1. Audit the imported `custom_components/sh_chore_tracker`, tests, runtime assets,
-  useful user docs, and attribution. Do not copy the source `.git`, development
-  HA configuration, editor tasks, agent/tooling directories, or release
-  automation into the operational tree. Historical docs and backlogs belong in
-  `docs/legacy/` and are not active release requirements.
-2. Preserve `sh_chore_tracker`, entity unique IDs, config-entry identity/version,
-   service names, and storage keys. Update the manifest display name to
-   `SmartHass Chore Tracker`, documentation to
-   `https://github.com/NateGr/sh_chore_tracker`, issue tracker to that URL plus
-   `/issues`, and include `@NateGr` in codeowners. Retain the actual current
-   version and required runtime metadata.
-3. Review imported tests before changing behavior. The exact pytest pins and
-   Home Assistant baseline are selected in `requirements_test.txt`; run the
-   complete suite before changing them.
-4. If the supported Python changes, update both setup-python steps and the Ruff
-   target in `pyproject.toml`, plus the contributor instructions. Keep
-   `homeassistant` in `hacs.json` and the README aligned with the tested minimum.
-5. Add a licensed `custom_components/sh_chore_tracker/brand/icon.png`. Keep all
-   runtime integration files inside the integration directory. No custom ZIP
-   release is needed.
-6. Run the contributor checks, `python scripts/release.py check
-   --require-integration`, and the complete imported test suite. Keep
-   `tool.smarthass.integration-ready = true` only while integration tests and
-   metadata validation are passing. The flag is an explicit maintainer assertion,
-   not proof that live upgrades or branding licensing have been verified.
-7. Remove the README's pending-import notice only when it is accurate to do so.
-   Retain any useful legacy changelog as historical documentation; GitHub release
-   notes are the source of new release history.
+See the [release review and remediation plan](release-readiness-review.md) for
+findings, acceptance criteria, test evidence, and implementation status. Archive
+completion claims are not current release evidence.
+
+- [x] Import the hub source/tests/assets with the preserved `sh_chore_tracker`
+  identity, service/event prefixes, entity unique IDs, and storage keys.
+- [x] Align the Home Assistant test pin and `hacs.json` minimum at 2026.9.0.
+- [x] Establish a full local Linux test baseline and passing import PR CI.
+- [x] Implement the current correctness/docs remediation and rerun local checks,
+  including registered service and example validation (313 tests, 91% combined
+  coverage in WSL Python 3.14.4/HA 2026.9.0; see the review report).
+- [ ] Commit/push the remediation and obtain fresh PR CI/hassfest results on
+  that exact commit. The earlier passing import CI predates these fixes.
+- [ ] Record clean-install and legacy-to-hub upgrade results on a disposable
+  Home Assistant instance, including reload and restart persistence.
+- [ ] Establish branding image ownership/license and complete the files/history
+  audit for secrets, household data, private URLs, and attribution.
+- [ ] Configure the main-only release environment, release App, required checks,
+  and enforceable branch/tag rules; verify permissions and merge protection.
+- [ ] Merge the reviewed, passing import/fix PR into main.
+- [ ] After publication-audit sign-off, enable public HACS validation and run a
+  release dry run. Verify App permissions separately; dry runs skip App pushes.
+- [ ] Verify recovery/invalid-version/stale-main/tag-collision behavior in an
+  appropriate controlled context without moving published production tags.
+- [ ] Confirm the old release/install baseline, publish a higher stable version,
+  and verify tagged HACS/manual installation and documented migration steps.
+
+The 2026-10-29 review found a private repository and no release environments.
+Rulesets were unavailable under the current private-repository plan. Recheck
+these live settings before acting; no App/bypass setup is implied by these docs.
+
+Keep `tool.smarthass.integration-ready = true` only while automated integration
+tests and metadata validation pass. This enables validation; it does not certify
+live upgrades, licensing, or hosted permissions. If supported Python changes,
+update both setup-python steps, the Ruff target, and contributor instructions.
+Keep the HA test dependency, HACS minimum, and README aligned.
+
+Keep runtime files inside `custom_components/sh_chore_tracker`; no custom ZIP
+release is needed. Retain historical changelogs as snapshots; GitHub release
+notes are the source of new release history. Do not import old Git history,
+development HA configuration, tokens, logs, or editor/agent tooling.
 
 ## GitHub Setup
 
-Commit and push the scaffold when ready. Hosting settings are not configured by
-these files. Do not enable required checks until the workflow has run and GitHub
+Hosting settings are not configured by these files. Do not enable required
+checks until the workflow has run and GitHub
 offers the correct check name.
 
 ### Repository

@@ -7,7 +7,8 @@ required from contributors.
 
 ## Local Setup
 
-Use Python 3.14.2 or newer to match CI and Home Assistant 2026.9.0. The test requirements pin Home Assistant to the
+Use Python 3.14.x (CI pins 3.14.2) with Home Assistant 2026.9.0. This does not
+claim compatibility with future Python minor versions. The test requirements pin Home Assistant to the
 minimum supported version in `hacs.json`. A running Home Assistant server is
 not required; tests use Home Assistant's installed Python package and mocked
 instances where needed.
@@ -41,10 +42,10 @@ Run the same local checks used by CI:
 python scripts/release.py check
 python -m ruff check .
 python -m ruff format --check --exclude '*.md' .
-python -m pytest tests/ --cov=scripts --cov-report=term-missing
+python -m pytest tests/ --cov=scripts --cov=custom_components/sh_chore_tracker --cov-report=term-missing
 ```
 
-Use `python -m ruff format .` to apply formatting. Review any automatic lint fixes
+Use `python -m ruff format --exclude '*.md' .` to apply formatting. Review any automatic lint fixes
 before committing. CI also measures coverage for
 `custom_components/sh_chore_tracker`.
 

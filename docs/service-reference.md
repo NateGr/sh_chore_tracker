@@ -43,7 +43,7 @@ event_type: sh_chore_tracker_chore_completed
 data:
   entity_id: sensor.chore_take_out_trash
   completed_at: "2025-01-15T10:00:00"
-  next_due_date: "2025-01-22T10:00:00"
+  next_due_date: "2025-01-22T00:00:00+00:00"
   completion_count: 5
 ```
 
@@ -109,7 +109,7 @@ data:
 - Updates chore status to "skipped" temporarily
 - Advances next due date from the current due date using the original recurrence pattern
 - Allows restoration within 24-hour window
-- Records skip in history
+- Stores the latest skip timestamp and original due date, not a full audit log
 
 #### Events Fired
 
@@ -140,15 +140,19 @@ data:
 
 #### Behavior
 
-- Only works within 24-hour window of skip
+- Works up to and including 24 hours after the latest skip, even across midnight
 - Restores original due date
-- Returns chore to pending status
-- Clears skip metadata
+- Resolves status to pending, due, or overdue from the restored due date
+- Marks the skip restored so it cannot be restored twice
+- Completion, snooze, reset, or changing the first occurrence supersedes the
+  previous skip. A second skip records a new original due date; restore undoes
+  only that latest skip. Reassignment alone preserves restore eligibility.
 
 #### Validation
 
 - Must be called within 24 hours of skip
-- Chore must be in skipped state
+- Chore must retain an eligible skip timestamp and original due date; its
+  visible status need not still be `skipped`
 - Chore must not already be restored
 
 #### Events Fired
@@ -183,7 +187,8 @@ data:
 
 - Updates assigned_person attribute
 - Maintains all other chore state
-- Records reassignment in history
+- Persists the new assignment and emits a reassignment event; no persistent
+  assignment audit-history list is maintained by this integration
 
 #### Validation
 
@@ -218,7 +223,9 @@ data:
 
 ### undo_complete_chore
 
-Restore the previous chore state after an accidental completion, within the configured undo window.
+Restore the previous chore state after an accidental completion, within the
+fixed 24-hour undo window. This window is not a configurable setting. Reset or
+changing the first occurrence clears the completion snapshot.
 
 ```yaml
 service: sh_chore_tracker.undo_complete_chore
@@ -248,6 +255,22 @@ Return chores assigned to the specified Person entity.
 service: sh_chore_tracker.list_my_chores
 data:
   person_id: person.alice
+response_variable: my_chores
+```
+
+Use this as a script/automation action with response capture. In Developer Tools,
+request the response. This response-only service cannot be called without one.
+The returned dictionary has a `chores` list; each item contains `chore_id`,
+`entity_id`, `name`, `status`, `next_due_date`, and `days_until_due`. For example:
+
+```yaml
+chores:
+  - chore_id: example_id
+    entity_id: sensor.chore_water_plants
+    name: Water plants
+    status: pending
+    next_due_date: "2026-11-01T00:00:00+00:00"
+    days_until_due: 3
 ```
 
 ## Service Schemas
@@ -294,7 +317,7 @@ vol.Schema({
 
 ```python
 vol.Schema({
-    vol.Required("entity_id"): cv.entity_id,
+    vol.Required("entity_id"): cv.entity_ids,
     vol.Required("person_id"): cv.entity_id,
 })
 ```
@@ -306,9 +329,10 @@ vol.Schema({
 ```yaml
 automation:
   trigger:
-    platform: device
-    device_id: !secret chore_button_device
-    type: pressed
+    platform: state
+    entity_id: binary_sensor.physical_chore_button
+    from: "off"
+    to: "on"
   action:
     service: sh_chore_tracker.complete_chore
     data:
@@ -327,6 +351,7 @@ automation:
   condition:
     condition: state
     entity_id: sensor.chore_walk_dog
+    attribute: status
     state: pending
   action:
     service: sh_chore_tracker.snooze_chore
@@ -346,11 +371,8 @@ automation:
   condition:
     condition: and
     conditions:
-      - condition: state
-        entity_id: sensor.chore_check_mail
-        state: pending
       - condition: template
-        value_template: "{{ state_attr('sensor.chore_check_mail', 'days_until_due') <= 0 }}"
+        value_template: "{{ state_attr('sensor.chore_check_mail', 'status') in ['due', 'overdue'] }}"
   action:
     service: notify.mobile_app
     data:
@@ -381,10 +403,12 @@ automation:
 
 ### Common Errors
 
-#### ServiceValidationError: Entity is not a chore tracker entity
+#### ServiceValidationError: Chore entity not found
 
-- **Cause:** entity_id doesn't start with `sensor.chore_`
-- **Solution:** Use correct chore entity ID
+- **Cause:** The entity registry does not map the entity to a loaded chore
+  subentry owned by this integration.
+- **Solution:** Use the chore sensor's current registered entity ID. Renamed
+  chore sensors work; matching a `sensor.chore_` prefix alone is not sufficient.
 
 #### ServiceValidationError: Person entity not found
 
@@ -398,23 +422,34 @@ automation:
 
 ### Validation Rules
 
-- **entity_id**: Must be chore tracker entity (`sensor.chore_*`)
+- **entity_id**: Must map through the entity registry to this integration's
+  loaded chore subentry. Chore actions accept one entity ID or a list.
 - **person_id**: Must be valid Person entity
 - **days**: 1-365 for snooze
 - **completion_date**: Valid ISO datetime string
-- **reason**: Optional string (max 255 chars)
+- **reason**: Optional string; no 255-character schema limit is imposed
 
 ## Event System
 
-All service calls fire events for automation integration:
+Lifecycle events use these exact names and payload keys:
 
-- `chore_completed`: Fired when chore is completed
-- `chore_snoozed`: Fired when chore is snoozed
-- `chore_skipped`: Fired when chore occurrence is skipped
-- `chore_restored`: Fired when skipped chore is restored
-- `chore_reassigned`: Fired when chore is reassigned
+| Event | Payload keys |
+| --- | --- |
+| `sh_chore_tracker_chore_completed` | `entity_id`, `completed_at`, `next_due_date`, `completion_count` |
+| `sh_chore_tracker_chore_complete_undone` | `entity_id`, `undo_date`, `undone_completion_date`, `status`, `next_due_date`, `completion_count` |
+| `sh_chore_tracker_chore_snoozed` | `entity_id`, `snoozed_for_days`, `new_due_date`, `snooze_count`, `reason` |
+| `sh_chore_tracker_chore_skipped` | `entity_id`, `skip_date`, `next_due_date`, `reason` |
+| `sh_chore_tracker_chore_restored` | `entity_id`, `restore_date`, `original_skip_date` |
+| `sh_chore_tracker_chore_reassigned` | `entity_id`, `old_person`, `new_person`, `reassign_date` |
+| `sh_chore_tracker_chore_overdue` | `entity_id`, `entry_id`, `chore_id`, `from_status`, `to_status`, `effective_date`, `next_due_date` |
+| `sh_chore_tracker_chore_schedule_reset` | `entity_id`, `anchor_date`, `next_due_date`, `status` |
 
-Events include relevant data for automation conditions and actions.
+Create/list do not emit these lifecycle events. An ignored duplicate completion
+does not emit another completion event. Overdue events fire once when a refresh
+changes the status to overdue; there is no dedicated due-transition event.
+Use a state trigger on the `status` attribute for due reminders. Due dates are
+all-day values serialized at local start-of-day with a timezone offset; example
+offsets depend on the Home Assistant timezone.
 
 ## Best Practices
 
@@ -433,25 +468,28 @@ Events include relevant data for automation conditions and actions.
 
 ### Error Handling in Automations
 
+Failed service calls normally stop an automation or script and appear in its
+trace. This script checks the state after a successful blocking completion call;
+it does not swallow service errors. Do not wait for a completion event after
+calling complete: that event can already have fired before the wait starts.
+
 ```yaml
-automation:
-  action:
-    - service: sh_chore_tracker.complete_chore
-      data:
-        entity_id: sensor.chore_example
-    - wait_for_trigger:
-        platform: event
-        event_type: chore_completed
-      timeout: "00:00:05"
-    - condition: template
-      value_template: "{{ not wait.trigger }}"}
-    - service: notify.mobile_app
-      data:
-        message: "Chore completion failed!"
+script:
+  complete_and_check_chore:
+    sequence:
+      - service: sh_chore_tracker.complete_chore
+        data:
+          entity_id: sensor.chore_example
+      - condition: template
+        value_template: "{{ state_attr('sensor.chore_example', 'status') != 'complete' }}"
+      - service: persistent_notification.create
+        data:
+          message: "The chore did not reach complete status. Check its current due date."
 ```
 
 ## Related Documentation
 
 - [Configuration Reference](configuration-reference.md)
-- [Product Requirements Document](../docs/prd.md)
-- [Developer Guide](developer-guide.md)
+- [Contributor Guide](../CONTRIBUTING.md)
+- [Maintainer Guide](maintainer.md)
+- [Historical Documentation](legacy/README.md)

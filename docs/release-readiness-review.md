@@ -6,11 +6,38 @@ Reviewed commit: `655547657c649a0ec34646f7e3a97312b0a31099`, branch
 
 ## Recommendation
 
-**Hold production publication.** Automated integration and release tests pass,
-but there is a reproduced lifecycle-contract defect, inaccurate active user
-documentation, missing release infrastructure, and no current live-upgrade or
-installation evidence. This review did not change runtime code or repository
-settings, merge a PR, dispatch a release, or publish anything.
+**Hold production publication pending live validation and hosted release gates.**
+The original review found a lifecycle defect and inaccurate active documentation.
+Steps 1-3 are now remediated locally, and step 4's local automated checks pass;
+fresh hosted CI must still validate the resulting commit. Live upgrade/install
+evidence and release infrastructure remain outstanding. No repository settings,
+PR merge, release dispatch, or publication was performed.
+
+## Remediation Progress
+
+The review/plan was committed separately as `da9b62d`. Runtime, tests, and active
+documentation changes described here are the subsequent uncommitted worktree;
+the baseline commit and CI evidence below do not describe that newer candidate.
+
+| Step | Current status | Evidence |
+| --- | --- | --- |
+| Cleanup | Complete | Old untracked integration directory removed; tracked package preserved. |
+| 1: Restore correctness | Implemented and locally verified | Regression first failed at the original status guard, then passed. Coverage includes midnight rollover, persisted reload, inclusive 24-hour boundary/expiry, repeat restore, later actions, and latest-skip semantics. |
+| 2: Service contracts/tests | Implemented and locally verified | Person-domain rejection before mutation; real HA registry tests cover all nine services, seven action schemas/dispatch paths, defaults, recurrence limits, admin create, and response-only listing. |
+| 3: Active documentation | Corrected and locally verified | 31 YAML examples parse; active relative links resolve; regression tests validate literal service data against registered schemas, response capture, sensor-state use, and auto-entities keys. Dynamic Jinja values require live validation. |
+| 4: Automated candidate gate | Local portion passed; fresh hosted CI pending | 313 tests passed, 91% combined coverage; lint, formatting, and metadata-readiness passed in WSL Python 3.14.4/HA 2026.9.0. Same single upstream HTTP deprecation warning. |
+| 5: Live HA/publication audit | Pending | No live instance, migration sign-off, asset provenance sign-off, or full secret/history audit was performed in this remediation. |
+| 6: Hosted release/publication | Pending | No GitHub settings changed, additional candidate commit/push performed, or release dispatched. |
+
+The implementation keeps normal status rollover and restores based on saved
+skip eligibility. Completion, snooze, reset, and explicit first-date reanchoring
+invalidate a previous skip; reassignment preserves it. A second skip records
+its own original due date. Calendar multiplier UI scope was not expanded:
+documentation now distinguishes current UI controls from service capabilities.
+
+Next gate: commit/push the remediation with maintainer authorization and obtain
+fresh PR CI/hassfest results for that exact commit, then begin step 5. The
+existing green CI run below covers only the original reviewed baseline.
 
 ## Verification Evidence
 
@@ -45,7 +72,11 @@ To repeat the full local test run while the temporary environment exists:
 wsl --exec bash -lc 'cd /mnt/c/git/sh_chore_tracker && PYTHONDONTWRITEBYTECODE=1 COVERAGE_FILE=/tmp/sh-chore-tracker-release-review-20261029/.coverage /tmp/sh-chore-tracker-release-review-20261029/bin/python -m pytest tests/ --cov=scripts --cov=custom_components/sh_chore_tracker --cov-report=term-missing -q'
 ```
 
-## Findings
+## Original Review Findings
+
+These sections preserve the findings at the reviewed baseline, before
+remediation. Use the progress table above for current status. Historical archive
+limitations and live/hosted release requirements remain applicable.
 
 ### P1: Restore Window Ends At Midnight
 
@@ -245,8 +276,9 @@ use active docs and a separately triaged current backlog for future work.
 
 ## Remediation Plan
 
-Plan status: cleanup complete; implementation and release phases below are
-pending. Proceed in order, validating each change before starting the next.
+Plan status: phases 0-3 complete locally; phase 4's local checks passed, with
+fresh hosted CI still pending. Phases 5-6 remain pending. The detailed phase
+descriptions below retain the intended scope and acceptance criteria.
 GitHub settings, visibility changes, credentials, merging, and publication
 require explicit maintainer action or approval; this plan does not authorize
 those operations automatically.
@@ -260,7 +292,7 @@ those operations automatically.
   coverage**, with the same single upstream Home Assistant deprecation warning.
 - The tracked `custom_components/sh_chore_tracker/` integration was unchanged.
 
-### Phase 1: Restore-Window Correctness - First Implementation Task
+### Phase 1: Restore-Window Correctness - Locally Complete
 
 Scope: the lifecycle coordinator and restore handler in
 [the integration](../custom_components/sh_chore_tracker/__init__.py), plus the
@@ -285,7 +317,7 @@ Acceptance: regression fails before the fix and passes after it; original due
 date is restored; normal due/overdue status resolution still works; targeted
 lifecycle/service tests and the complete suite pass.
 
-### Phase 2: Service Contracts And Regression Coverage
+### Phase 2: Service Contracts And Regression Coverage - Locally Complete
 
 Scope: existing service handlers, schemas, and service/config-flow tests. Keep
 the `sh_chore_tracker` domain, storage keys, and stable entity identities.
@@ -309,7 +341,7 @@ Acceptance: invalid assignment cannot mutate configuration; registered schemas
 match the examples; response-only and admin behavior are tested; the full suite
 passes. Add tests in existing files unless a separate file is genuinely needed.
 
-### Phase 3: Active Documentation Corrections
+### Phase 3: Active Documentation Corrections - Locally Complete
 
 Update [README](../README.md), [configuration reference](configuration-reference.md),
 [service reference](service-reference.md), [contributor guide](../CONTRIBUTING.md),
@@ -347,7 +379,7 @@ structure matches upstream; no active local file links are broken. Reuse the
 existing YAML tooling for focused regression tests where practical rather than
 adding a documentation framework unnecessarily.
 
-### Phase 4: Automated Candidate Gate
+### Phase 4: Automated Candidate Gate - Local Checks Passed
 
 Run the full Linux suite with the pinned Home Assistant baseline, coverage,
 Ruff lint/format checks, release-readiness check, and current documentation
@@ -414,10 +446,10 @@ metadata check or dry run is green.
 
 ## Current Worktree And Next Action
 
-The rogue old-name directory has been deleted and the post-cleanup suite is
-green. This report remains a new, uncommitted file. No runtime remediation,
-GitHub configuration, commit, push, merge, or publication was performed as part
-of the cleanup/plan step.
+The rogue old-name directory is absent. The original review/plan is committed
+as `da9b62d`. The subsequent runtime/test/docs remediation is uncommitted and
+has not been pushed. No GitHub configuration, PR merge, or publication occurred.
 
-**Next implementation task:** Phase 1's cross-midnight restore regression and
-the smallest compatible fix, followed immediately by focused validation.
+**Next action:** authorize a remediation commit/push and verify fresh CI on that
+candidate. Then perform the disposable live Home Assistant validation and
+publication audit in phase 5 before proceeding to release setup/publication.

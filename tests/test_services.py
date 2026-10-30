@@ -1,12 +1,19 @@
 """Tests for chore tracker service handlers (Stories 2.2, 2.3, 2.6)."""
 
+import re
 from datetime import date, datetime, timedelta
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
+from urllib.parse import unquote, urlsplit
 
 import pytest
-from homeassistant.exceptions import ServiceValidationError
+import pytest_asyncio
+import yaml
+from homeassistant.core import Context, HomeAssistant, SupportsResponse
+from homeassistant.exceptions import ServiceValidationError, Unauthorized
+from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers.selector import EntitySelector
+from homeassistant.util import dt as dt_util
 from homeassistant.util.yaml import load_yaml
 
 from custom_components.sh_chore_tracker import (
@@ -22,6 +29,7 @@ from custom_components.sh_chore_tracker import (
     _skip_chore_handler,
     _snooze_chore_handler,
     _undo_complete_chore_handler,
+    async_setup_services,
 )
 from custom_components.sh_chore_tracker.const import (
     CHORE_STATUS_COMPLETE,
@@ -109,6 +117,264 @@ def _assert_same_instant(actual: datetime, expected: datetime) -> None:
     elif actual.tzinfo is None and expected.tzinfo is not None:
         actual = actual.replace(tzinfo=expected.tzinfo)
     assert actual == expected
+
+
+@pytest_asyncio.fixture
+async def registered_hass(tmp_path):
+    hass = HomeAssistant(str(tmp_path))
+    hass.config_entries = MagicMock()
+    hass.auth = MagicMock()
+    hass.auth.async_get_user = AsyncMock(return_value=MagicMock(is_admin=False))
+    hass.states.async_set("person.alice", "home")
+    coordinator = MagicMock(spec=ChoreCoordinator)
+    coordinator.chore_data = {
+        "chore_1": {
+            "config": {"chore_name": "Test", "assigned_person": "person.alice"},
+            "state": {"status": "pending", "next_due_date": datetime(2026, 11, 1)},
+        }
+    }
+    coordinator.entity_id_for_chore.return_value = "sensor.renamed_task"
+    hass.data[DOMAIN] = {"hub_1": coordinator}
+    await async_setup_services(hass)
+    yield hass
+    await hass.async_block_till_done()
+
+
+@pytest.mark.asyncio
+async def test_registers_all_documented_services(registered_hass):
+    services = load_yaml(
+        str(Path(__file__).parents[1] / "custom_components/sh_chore_tracker/services.yaml")
+    )
+    assert set(registered_hass.services.async_services()[DOMAIN]) == set(services)
+    assert len(services) == 9
+    assert (
+        registered_hass.services.supports_response(DOMAIN, "list_my_chores")
+        == SupportsResponse.ONLY
+    )
+    await async_setup_services(registered_hass)
+    assert len(registered_hass.services.async_services()[DOMAIN]) == 9
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "action",
+    [
+        "complete_chore",
+        "undo_complete_chore",
+        "snooze_chore",
+        "skip_chore",
+        "restore_chore",
+        "reassign_chore",
+        "reset_next_due_date",
+    ],
+)
+async def test_registered_chore_actions_require_entity(registered_hass, action):
+    with pytest.raises(cv.vol.Invalid):
+        await registered_hass.services.async_call(DOMAIN, action, {}, blocking=True)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("days", [0, 366, "invalid"])
+async def test_registered_snooze_rejects_invalid_duration(registered_hass, days):
+    with pytest.raises(cv.vol.Invalid):
+        await registered_hass.services.async_call(
+            DOMAIN, "snooze_chore", {"entity_id": "sensor.test", "days": days}, blocking=True
+        )
+
+
+@pytest.mark.asyncio
+async def test_registered_reset_rejects_replacement_date(registered_hass):
+    with pytest.raises(cv.vol.Invalid):
+        await registered_hass.services.async_call(
+            DOMAIN,
+            "reset_next_due_date",
+            {"entity_id": "sensor.test", "date": "2026-11-01"},
+            blocking=True,
+        )
+
+
+@pytest.mark.asyncio
+async def test_registered_create_requires_admin(registered_hass):
+    with pytest.raises(Unauthorized):
+        await registered_hass.services.async_call(
+            DOMAIN,
+            "create_chore",
+            {"chore_name": "Test"},
+            blocking=True,
+            context=Context(user_id="non_admin"),
+        )
+    registered_hass.config_entries.async_add_subentry.assert_not_called()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("assigned_person", ["none", "person.alice"])
+async def test_registered_create_applies_defaults(registered_hass, assigned_person):
+    await registered_hass.services.async_call(
+        DOMAIN,
+        "create_chore",
+        {"chore_name": "Test", "assigned_person": assigned_person},
+        blocking=True,
+    )
+    subentry = registered_hass.config_entries.async_add_subentry.call_args.args[1]
+    assert subentry.data["recurrence_type"] == "interval"
+    assert subentry.data["pattern_interval"] == 1
+    assert subentry.data["interval_unit"] == "days"
+    assert subentry.data["assigned_person"] == assigned_person
+    assert date.fromisoformat(subentry.data["first_occurrence_date"]) == dt_util.now().date()
+
+
+@pytest.mark.asyncio
+async def test_registered_listing_returns_captured_response(registered_hass):
+    response = await registered_hass.services.async_call(
+        DOMAIN, "list_my_chores", {"person_id": "person.alice"}, blocking=True, return_response=True
+    )
+    assert set(response) == {"chores"}
+    assert set(response["chores"][0]) == {
+        "chore_id",
+        "entity_id",
+        "name",
+        "status",
+        "next_due_date",
+        "days_until_due",
+    }
+    assert response["chores"][0]["entity_id"] == "sensor.renamed_task"
+    with pytest.raises(ServiceValidationError, match="response"):
+        await registered_hass.services.async_call(
+            DOMAIN, "list_my_chores", {"person_id": "person.alice"}, blocking=True
+        )
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("action", "handler_name"),
+    [
+        ("complete_chore", "_complete_chore_handler"),
+        ("undo_complete_chore", "_undo_complete_chore_handler"),
+        ("snooze_chore", "_snooze_chore_handler"),
+        ("skip_chore", "_skip_chore_handler"),
+        ("restore_chore", "_restore_chore_handler"),
+        ("reassign_chore", "_reassign_chore_handler"),
+        ("reset_next_due_date", "_reset_next_due_date_handler"),
+    ],
+)
+async def test_registered_actions_dispatch_validated_bulk_input(
+    registered_hass, action, handler_name
+):
+    coordinator = _make_coordinator(registered_hass)
+    data = {"entity_id": ["sensor.renamed_task", "sensor.other_task"]}
+    if action == "reassign_chore":
+        data["person_id"] = "person.alice"
+    with (
+        patch(
+            "custom_components.sh_chore_tracker._find_chore_data",
+            AsyncMock(return_value=(coordinator, coordinator._chore_data)),
+        ),
+        patch(f"custom_components.sh_chore_tracker.{handler_name}", AsyncMock()) as handler,
+    ):
+        await registered_hass.services.async_call(DOMAIN, action, data, blocking=True)
+    assert handler.await_count == 2
+    assert [call.args[3] for call in handler.await_args_list] == data["entity_id"]
+    if action == "snooze_chore":
+        assert handler.await_args.args[4]["days"] == 3
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "schedule",
+    [
+        {"recurrence_type": "weekly", "pattern_interval": 53},
+        {"recurrence_type": "monthly", "pattern_interval": 61},
+        {"recurrence_type": "yearly", "pattern_interval": 11},
+        {"interval_unit": "weeks", "pattern_interval": 61},
+        {"interval_unit": "years", "pattern_interval": 11},
+    ],
+)
+async def test_registered_create_enforces_recurrence_limits(registered_hass, schedule):
+    with pytest.raises(ServiceValidationError, match="recurrence"):
+        await registered_hass.services.async_call(
+            DOMAIN, "create_chore", {"chore_name": "Test", **schedule}, blocking=True
+        )
+    registered_hass.config_entries.async_add_subentry.assert_not_called()
+
+
+def _documentation_yaml(relative):
+    text = (Path(__file__).parents[1] / relative).read_text(encoding="utf-8")
+    return [
+        yaml.safe_load(block) for block in re.findall(r"^```yaml\n(.*?)^```", text, re.M | re.S)
+    ]
+
+
+def _document_nodes(value):
+    if isinstance(value, dict):
+        yield value
+        for child in value.values():
+            yield from _document_nodes(child)
+    elif isinstance(value, list):
+        for child in value:
+            yield from _document_nodes(child)
+
+
+@pytest.mark.parametrize(
+    "relative", ["README.md", "docs/configuration-reference.md", "docs/service-reference.md"]
+)
+def test_active_yaml_examples_parse_and_use_current_state_contract(relative):
+    examples = _documentation_yaml(relative)
+    assert examples
+    for example in examples:
+        for node in _document_nodes(example):
+            if isinstance(node.get("entity_id"), str) and node.get("condition") == "state":
+                if node["entity_id"].startswith("sensor.chore_"):
+                    assert node.get("attribute") == "status" or node.get("state") not in {
+                        "pending",
+                        "due",
+                        "overdue",
+                        "complete",
+                        "snoozed",
+                        "skipped",
+                    }
+            if node.get("type") == "custom:auto-entities":
+                assert "sort" in node
+                assert "sort" not in node["filter"]
+                for include in node["filter"]["include"]:
+                    assert "attribute" not in include
+                    assert include["attributes"]["integration_domain"] == DOMAIN
+
+
+@pytest.mark.asyncio
+async def test_documented_service_data_matches_registered_schemas(registered_hass):
+    registrations = registered_hass.services.async_services()[DOMAIN]
+    for relative in ("README.md", "docs/service-reference.md"):
+        for example in _documentation_yaml(relative):
+            for node in _document_nodes(example):
+                action = node.get("service", node.get("action"))
+                if not isinstance(action, str) or not action.startswith(f"{DOMAIN}."):
+                    continue
+                service = action.split(".", 1)[1]
+                data = node.get("data", {})
+                if "{{" not in str(data):
+                    registrations[service].schema(data)
+                if service == "list_my_chores":
+                    assert node.get("response_variable")
+
+
+@pytest.mark.parametrize(
+    "relative",
+    [
+        "README.md",
+        "CONTRIBUTING.md",
+        "docs/configuration-reference.md",
+        "docs/service-reference.md",
+        "docs/maintainer.md",
+        ".github/SECURITY.md",
+        ".github/pull_request_template.md",
+    ],
+)
+def test_active_documentation_local_links_exist(relative):
+    document = Path(__file__).parents[1] / relative
+    for target in re.findall(r"\[[^\]]*\]\(([^)]+)\)", document.read_text(encoding="utf-8")):
+        url = urlsplit(target)
+        if not url.scheme and url.path:
+            assert (document.parent / unquote(url.path)).exists(), target
 
 
 # ---------------------------------------------------------------------------
@@ -497,7 +763,56 @@ class TestRestoreChoreHandler:
     """Tests for _restore_chore_handler (Story 2.4)."""
 
     @pytest.mark.asyncio
-    async def test_restore_sets_pending_and_persists(self):
+    @pytest.mark.parametrize("reload_state", [False, True])
+    async def test_restore_survives_midnight_refresh(self, reload_state):
+        skipped_at = datetime.fromisoformat("2026-10-28T23:55:00+00:00")
+        restored_at = datetime.fromisoformat("2026-10-29T00:05:00+00:00")
+        original_due = skipped_at.replace(hour=0, minute=0)
+        coordinator = ChoreCoordinator.__new__(ChoreCoordinator)
+        coordinator.hass = MagicMock()
+        coordinator.entry = MagicMock(entry_id="hub_1")
+        coordinator._chores = {
+            "chore_1": {
+                "config": {"chore_name": "Test Chore"},
+                "state": {
+                    "status": CHORE_STATUS_SKIPPED,
+                    "last_skip_date": skipped_at,
+                    "original_due_date": original_due,
+                    "next_due_date": original_due + timedelta(days=7),
+                    "completion_count": 4,
+                },
+            }
+        }
+        coordinator._subentry_to_chore = {}
+        coordinator.async_save_state = AsyncMock()
+        coordinator.async_request_refresh = AsyncMock(
+            side_effect=coordinator._async_update_hub_data
+        )
+        chore_data = coordinator._chores["chore_1"]
+
+        if reload_state:
+            coordinator._store = MagicMock()
+            coordinator._store.async_save = AsyncMock()
+            await coordinator._async_save_hub_state()
+            stored = coordinator._store.async_save.call_args.args[0]
+            coordinator._store.async_load = AsyncMock(return_value=stored)
+            chore_data["state"] = {}
+            await coordinator._async_load_hub_state()
+
+        with patch("custom_components.sh_chore_tracker.dt_util.now", return_value=restored_at):
+            await coordinator._async_update_hub_data()
+            assert chore_data["state"]["status"] == CHORE_STATUS_PENDING
+            await _restore_chore_handler(
+                coordinator.hass, coordinator, chore_data, "sensor.test", {}
+            )
+
+        assert chore_data["state"]["next_due_date"] == original_due
+        assert chore_data["state"]["status"] == "overdue"
+        assert chore_data["state"]["completion_count"] == 4
+        assert chore_data["state"]["skip_restored"] is True
+
+    @pytest.mark.asyncio
+    async def test_restore_resolves_status_and_persists(self):
         hass = MagicMock()
         hass.bus.async_fire = MagicMock()
         coordinator = _make_coordinator(
@@ -515,9 +830,9 @@ class TestRestoreChoreHandler:
         await _restore_chore_handler(hass, coordinator, chore_data, "sensor.test", {})
 
         state = chore_data["state"]
-        assert state["status"] == CHORE_STATUS_PENDING
+        assert state["status"] == "overdue"
         assert state["skip_restored"] is True
-        assert state["next_due_date"] == state["original_due_date"]
+        _assert_same_instant(state["next_due_date"], state["original_due_date"])
         coordinator.async_save_state.assert_awaited_once()
         coordinator.async_request_refresh.assert_awaited_once()
 
@@ -547,6 +862,65 @@ class TestRestoreChoreHandler:
 
         coordinator.async_save_state.assert_not_awaited()
         coordinator.async_request_refresh.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("elapsed_minutes", [0, 10, 1439, 1440, 1441])
+    async def test_restore_window_boundary(self, elapsed_minutes):
+        now = datetime.fromisoformat("2026-10-29T12:00:00+00:00")
+        hass = MagicMock()
+        coordinator = _make_coordinator(
+            hass,
+            {
+                "status": CHORE_STATUS_PENDING,
+                "last_skip_date": now - timedelta(minutes=elapsed_minutes),
+                "original_due_date": now - timedelta(days=2),
+            },
+        )
+        chore_data = _make_chore_data(coordinator)
+        with patch("custom_components.sh_chore_tracker.dt_util.now", return_value=now):
+            if elapsed_minutes > 1440:
+                with pytest.raises(ServiceValidationError, match="too long ago"):
+                    await _restore_chore_handler(hass, coordinator, chore_data, "sensor.test", {})
+                coordinator.async_save_state.assert_not_awaited()
+            else:
+                await _restore_chore_handler(hass, coordinator, chore_data, "sensor.test", {})
+                with pytest.raises(ServiceValidationError, match="already been restored"):
+                    await _restore_chore_handler(hass, coordinator, chore_data, "sensor.test", {})
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("action", ["complete", "snooze", "reset", "reanchor"])
+    async def test_later_actions_invalidate_restore(self, action):
+        now = datetime.fromisoformat("2026-10-29T12:00:00+00:00")
+        hass = MagicMock()
+        coordinator = _make_coordinator(hass, {"next_due_date": now})
+        chore_data = _make_chore_data(coordinator)
+        with patch("custom_components.sh_chore_tracker.dt_util.now", return_value=now):
+            await _skip_chore_handler(hass, coordinator, chore_data, "sensor.test", {})
+            if action == "reanchor":
+                chore_data["config"]["first_occurrence_date"] = "2026-11-01"
+                ChoreCoordinator._apply_chore_first_occurrence_update(coordinator, chore_data)
+            else:
+                handler = {
+                    "complete": _complete_chore_handler,
+                    "snooze": _snooze_chore_handler,
+                    "reset": _reset_next_due_date_handler,
+                }[action]
+                await handler(hass, coordinator, chore_data, "sensor.test", {})
+            with pytest.raises(ServiceValidationError, match="no skipped occurrence"):
+                await _restore_chore_handler(hass, coordinator, chore_data, "sensor.test", {})
+
+    @pytest.mark.asyncio
+    async def test_restore_undoes_only_the_latest_skip(self):
+        now = datetime.fromisoformat("2026-10-29T12:00:00+00:00")
+        hass = MagicMock()
+        coordinator = _make_coordinator(hass, {"next_due_date": now})
+        chore_data = _make_chore_data(coordinator)
+        with patch("custom_components.sh_chore_tracker.dt_util.now", return_value=now):
+            await _skip_chore_handler(hass, coordinator, chore_data, "sensor.test", {})
+            after_first_skip = chore_data["state"]["next_due_date"]
+            await _skip_chore_handler(hass, coordinator, chore_data, "sensor.test", {})
+            await _restore_chore_handler(hass, coordinator, chore_data, "sensor.test", {})
+        assert chore_data["state"]["next_due_date"] == after_first_skip
 
 
 # ---------------------------------------------------------------------------
@@ -602,6 +976,20 @@ class TestSkipChoreHandler:
 
 class TestReassignChoreHandler:
     """Tests for _reassign_chore_handler (Story 3.2)."""
+
+    @pytest.mark.asyncio
+    async def test_reassign_rejects_existing_non_person_without_mutation(self):
+        hass = MagicMock()
+        coordinator = _make_coordinator(hass)
+        chore_data = _make_chore_data(coordinator)
+        chore_data["config"]["assigned_person"] = "person.alice"
+        with pytest.raises(ServiceValidationError, match="Person entity"):
+            await _reassign_chore_handler(
+                hass, coordinator, chore_data, "sensor.test", {"person_id": "light.kitchen"}
+            )
+        assert chore_data["config"]["assigned_person"] == "person.alice"
+        hass.config_entries.async_update_subentry.assert_not_called()
+        coordinator.async_request_refresh.assert_not_awaited()
 
     @pytest.mark.asyncio
     async def test_reassign_updates_assignment_and_emits_event(self):
@@ -975,6 +1363,17 @@ class TestHandleServiceCallIntegrationValidation:
 
 class TestHubServices:
     """Tests for hub-level chore creation and person-filtered listing."""
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("person_id", ["light.kitchen", "person.missing"])
+    async def test_create_rejects_invalid_person_without_mutation(self, person_id):
+        hass = MagicMock()
+        hass.data = {DOMAIN: {"hub_1": MagicMock()}}
+        hass.states.get.return_value = None if person_id == "person.missing" else MagicMock()
+        call = MagicMock(data={"chore_name": "Test", "assigned_person": person_id})
+        with pytest.raises(ServiceValidationError, match="Person entity"):
+            await _handle_create_chore(hass, call)
+        hass.config_entries.async_add_subentry.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_create_chore_adds_a_validated_subentry(self):

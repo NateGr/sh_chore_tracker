@@ -13,7 +13,7 @@ The hub uses native Home Assistant config subentries and requires Home Assistant
 ### UI Configuration Flow
 
 1. Go to **Settings → Devices & Services → Integrations**.
-2. Add **Chore Tracker**. The first flow creates the household hub and its first chore.
+2. Add **SmartHass Chore Tracker**. The first flow creates the household hub and its first chore.
 3. Add or edit later chores from the hub's chore subentry controls.
 
 The hub owns chore configuration and lifecycle state. Each chore is a native config subentry and appears as a device linked beneath the Chore Tracker hub.
@@ -52,9 +52,14 @@ The hub owns chore configuration and lifecycle state. Each chore is a native con
 #### Pattern Interval (`pattern_interval`)
 
 - **Type:** Number
-- **Required:** Yes
-- **Range:** 1-999
-- **Description:** Frequency multiplier for the selected recurrence rule.
+- **UI:** Shown for interval recurrence only; defaults to 1.
+- **Service limits:** Days: 1-999; weeks/months: 1-60; years: 1-10.
+- **Calendar service limits:** Weekly: 1-52; monthly: 1-60; yearly: 1-10.
+- **Description:** Frequency multiplier used by the recurrence engine. The UI
+  does not expose a multiplier for weekly, monthly, or yearly creation; these
+  default to 1. Use the admin-only `create_chore` service for calendar schedules
+  with a larger multiplier. Existing service-created multipliers are preserved
+  by editing, but are not editable through those calendar forms.
 
 #### First Occurrence Date (`first_occurrence_date`)
 
@@ -181,6 +186,11 @@ The `status` attribute carries the chore's lifecycle string value.
 | `skipped` | Current instance skipped |
 | `complete` | Marked complete, awaiting next recurrence |
 
+Complete and skipped statuses normally roll back to pending after calendar
+rollover, or to due/overdue when appropriate. The coordinator reevaluates status
+every 15 minutes and after chore actions. A skip can still be restored for up to
+24 hours after the latest skip, even after its visible status has changed.
+
 Use `status` in automations where you previously checked the entity state directly:
 
 ```yaml
@@ -210,11 +220,11 @@ card:
   type: entities
 filter:
   include:
-    - attribute:
+    - attributes:
         integration_domain: sh_chore_tracker
-  sort:
-    method: state
-    numeric: true
+sort:
+  method: state
+  numeric: true
 ```
 
 This shows all chore entities sorted by `days_until_due` (most overdue first).
@@ -227,15 +237,22 @@ card:
   type: entities
 filter:
   include:
-    - attribute:
+    - attributes:
         integration_domain: sh_chore_tracker
-      state: < 0
-  sort:
-    method: state
-    numeric: true
+      state: "< 0"
+sort:
+  method: state
+  numeric: true
 ```
 
 
+
+## Configuration Examples
+
+These dictionaries illustrate stored configuration, not supported
+`configuration.yaml` setup. Choose a first date today or later when creating a
+chore; fixed dates below are illustrative. Calendar multipliers greater than
+one require the admin-only `create_chore` service, not the current calendar UI.
 
 ### Daily Chore
 
@@ -297,7 +314,7 @@ first_occurrence_date: "2027-04-15"
 
 - `chore_name`
 - `recurrence_type`
-- `pattern_interval`
+- `pattern_interval` in the interval UI; other UI recurrence forms default to 1
 - `first_occurrence_date`
 
 ### Conditional Requirements
@@ -317,11 +334,15 @@ first_occurrence_date: "2027-04-15"
 
 ## Reset Service Contract
 
-The `reset_next_due_date` service uses the exact same normalization rules as `first_occurrence_date`. If you provide a replacement date that does not match the active recurrence rule, the date is rolled forward to the next valid occurrence before the chore is updated.
+The `reset_next_due_date` service accepts only `entity_id`. It recalculates from
+the last completion, or from the configured first occurrence if never completed,
+and clears snooze/skip and undo overrides without erasing completion history.
+A past result remains overdue. There is no replacement-date parameter. To
+reanchor a schedule, edit its first occurrence through the chore subentry flow.
 
 ## Related Documentation
 
-- [Product Requirements Document](../docs/prd.md)
-- [Architecture Document](../docs/architecture.md)
 - [Service Reference](service-reference.md)
-- [Developer Guide](developer-guide.md)
+- [Contributor Guide](../CONTRIBUTING.md)
+- [Maintainer Guide](maintainer.md)
+- [Historical Requirements And Architecture](legacy/README.md)

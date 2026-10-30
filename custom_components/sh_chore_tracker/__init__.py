@@ -1334,6 +1334,7 @@ async def _complete_chore_handler(
     state["completion_count"] = state.get("completion_count", 0) + 1
     state["snooze_until"] = None  # Clear any snooze
     state["snooze_count"] = 0  # Reset snooze counter on completion
+    state["original_due_date"] = None
 
     # Calculate next due date using recurrence engine
     recurrence_engine = RecurrenceEngine()
@@ -1430,6 +1431,7 @@ async def _snooze_chore_handler(
     state["snooze_until"] = state["next_due_date"]
     state["snooze_reason"] = reason
     state["snooze_count"] = state.get("snooze_count", 0) + 1
+    state["original_due_date"] = None
 
     # Persist state before triggering refresh
     await coordinator.async_save_state()
@@ -1472,8 +1474,7 @@ async def _skip_chore_handler(
     current_due = _parse_state_datetime(state.get("next_due_date")) or dt_util.now()
 
     # Store original due date for potential restore
-    if not state.get("original_due_date"):
-        state["original_due_date"] = current_due
+    state["original_due_date"] = current_due
 
     # Store skip information for potential restore
     state["last_skip_date"] = dt_util.now()
@@ -1517,27 +1518,27 @@ async def _restore_chore_handler(
 
     state = chore_data["state"]
 
-    # Validate chore was recently skipped
-    if state.get("status") != CHORE_STATUS_SKIPPED:
-        raise ServiceValidationError(f"Chore {entity_id} is not in skipped state")
-
     if state.get("skip_restored", False):
         raise ServiceValidationError(f"Chore {entity_id} has already been restored")
 
-    # Restore to previous state (typically pending or overdue)
     last_skip_date = _parse_state_datetime(state.get("last_skip_date"))
-    if (
-        last_skip_date
-        and (dt_util.now() - last_skip_date).total_seconds() > DEFAULT_RESTORE_WINDOW_HOURS * 3600
-    ):
+    if last_skip_date is None:
+        raise ServiceValidationError(f"Chore {entity_id} has no skipped occurrence to restore")
+    if (dt_util.now() - last_skip_date).total_seconds() > DEFAULT_RESTORE_WINDOW_HOURS * 3600:
         raise ServiceValidationError(f"Chore {entity_id} was skipped too long ago to restore")
 
-    # Restore the chore
-    state["status"] = CHORE_STATUS_PENDING
+    original_due = _parse_state_datetime(state.get("original_due_date"))
+    if original_due is None or state.get("status") not in {
+        CHORE_STATUS_SKIPPED,
+        CHORE_STATUS_PENDING,
+        CHORE_STATUS_DUE,
+        CHORE_STATUS_OVERDUE,
+    }:
+        raise ServiceValidationError(f"Chore {entity_id} has no skipped occurrence to restore")
+
+    state["next_due_date"] = original_due
+    state["status"] = _resolve_open_status(original_due)
     state["skip_restored"] = True
-    # Restore original due date (before skip moved it forward)
-    if "original_due_date" in state:
-        state["next_due_date"] = state["original_due_date"]
 
     # Persist state before triggering refresh
     await coordinator.async_save_state()
@@ -1571,6 +1572,8 @@ async def _reassign_chore_handler(
     person_id = service_data["person_id"]
 
     # Validate person entity exists
+    if not person_id.startswith("person."):
+        raise ServiceValidationError("person_id must identify a Person entity")
     person_state = hass.states.get(person_id)
     if not person_state:
         raise ServiceValidationError(f"Person entity {person_id} not found")
@@ -1670,6 +1673,8 @@ async def _handle_create_chore(hass: HomeAssistant, call: ServiceCall) -> None:
 
     config = dict(call.data)
     person_id = config[CONF_ASSIGNED_PERSON]
+    if person_id != "none" and not person_id.startswith("person."):
+        raise ServiceValidationError("assigned_person must identify a Person entity or none")
     if person_id != "none" and hass.states.get(person_id) is None:
         raise ServiceValidationError(f"Person entity {person_id} not found")
     if config[CONF_RECURRENCE_TYPE] == RECURRENCE_TYPE_YEARLY:
