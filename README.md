@@ -177,4 +177,11 @@ state. Backups remain necessary; unit-test coverage is not a live-upgrade test.
 - [Issues](https://github.com/NateGr/sh_chore_tracker/issues): bugs and suggestions.
 - [Security policy](.github/SECURITY.md): privately report vulnerabilities.
 
+## Acknowledgements
+
+SmartHass Chore Tracker was inspired by
+[Chore Helper for Home Assistant](https://github.com/VolantisDev/ha-chore-helper).
+Thank you to VolantisDev and the project's contributors for their work on
+recurring chore management in Home Assistant.
+
 Distributed under the [MIT license](LICENSE).
