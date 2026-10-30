@@ -1,0 +1,223 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Set up a Chore",
+        "description": "Set the chore's name, optional description, and assignee. Choose its schedule in the next steps.",
+        "data": {
+          "chore_name": "Chore Name",
+          "chore_description": "Description",
+          "assigned_person": "Assigned Person"
+        }
+      },
+      "recurrence_type": {
+        "title": "Choose a Schedule",
+        "description": "Choose how often this chore should recur.",
+        "data": { "recurrence_type": "Recurrence Type" }
+      },
+      "interval_config": {
+        "title": "Set the Interval",
+        "description": "Choose the interval between completions.",
+        "data": {
+          "pattern_interval": "Interval",
+          "interval_unit": "Interval Unit"
+        }
+      },
+      "weekly_config": {
+        "title": "Choose Weekdays",
+        "description": "Select the days when this chore is due.",
+        "data": { "weekly_days": "Weekdays" }
+      },
+      "monthly_config": {
+        "title": "Choose a Monthly Rule",
+        "description": "Choose a day of the month or an ordinal weekday.",
+        "data": { "monthly_mode": "Monthly Rule" }
+      },
+      "monthly_day_of_month": {
+        "title": "Choose a Day of the Month",
+        "data": { "monthly_day": "Day of Month" }
+      },
+      "monthly_ordinal_weekday": {
+        "title": "Choose an Ordinal Weekday",
+        "description": "For example, the first Monday or last Friday of each month.",
+        "data": {
+          "monthly_ordinal": "Week of Month",
+          "monthly_weekday": "Weekday"
+        }
+      },
+      "yearly_config": {
+        "title": "Choose a Yearly Date",
+        "data": {
+          "yearly_month": "Month",
+          "yearly_day": "Day of Month"
+        }
+      },
+      "first_occurrence": {
+        "title": "Choose the First Due Date",
+        "description": "Choose when this chore should first be due.",
+        "data": { "first_occurrence_date": "First Occurrence Date" }
+      }
+    },
+    "error": {
+      "weekly_days_required": "Select at least one weekday.",
+      "invalid_monthly_ordinal": "Choose a valid week of the month.",
+      "invalid_date": "Enter a valid date.",
+      "date_in_past": "The first due date cannot be in the past."
+    },
+    "abort": {
+      "single_instance_allowed": "Only one Chore Tracker hub is allowed. Add new chores to your existing hub.",
+      "already_configured": "The Chore Tracker hub is already configured."
+    }
+  },
+  "config_subentries": {
+    "summary": {
+      "entry_type": "Overall summary",
+      "initiate_flow": { "user": "Add summary" },
+      "step": {}
+    },
+    "chore": {
+      "entry_type": "Chore",
+      "initiate_flow": { "user": "Add chore" },
+      "step": {
+        "user": {
+          "title": "Chore Details",
+          "description": "Set the chore's name, optional description, and assignee. Choose its schedule in the next steps.",
+          "data": {
+            "chore_name": "Chore Name",
+            "chore_description": "Description",
+            "assigned_person": "Assigned Person"
+          }
+        },
+        "recurrence_type": {
+          "title": "Choose a Schedule",
+          "description": "Choose how often this chore should recur.",
+          "data": { "recurrence_type": "Recurrence Type" }
+        },
+        "interval_config": {
+          "title": "Set the Interval",
+          "description": "Choose the interval between completions.",
+          "data": {
+            "pattern_interval": "Interval",
+            "interval_unit": "Interval Unit"
+          }
+        },
+        "weekly_config": {
+          "title": "Choose Weekdays",
+          "description": "Select the days when this chore is due.",
+          "data": { "weekly_days": "Weekdays" }
+        },
+        "monthly_config": {
+          "title": "Choose a Monthly Rule",
+          "description": "Choose a day of the month or an ordinal weekday.",
+          "data": { "monthly_mode": "Monthly Rule" }
+        },
+        "monthly_day_of_month": {
+          "title": "Choose a Day of the Month",
+          "data": { "monthly_day": "Day of Month" }
+        },
+        "monthly_ordinal_weekday": {
+          "title": "Choose an Ordinal Weekday",
+          "description": "For example, the first Monday or last Friday of each month.",
+          "data": {
+            "monthly_ordinal": "Week of Month",
+            "monthly_weekday": "Weekday"
+          }
+        },
+        "yearly_config": {
+          "title": "Choose a Yearly Date",
+          "data": {
+            "yearly_month": "Month",
+            "yearly_day": "Day of Month"
+          }
+        },
+        "first_occurrence": {
+          "title": "Choose the First Due Date",
+          "description": "Choose when this chore should first be due.",
+          "data": { "first_occurrence_date": "First Occurrence Date" }
+        }
+      },
+      "abort": {
+        "reconfigure_successful": "The chore has been updated."
+      },
+      "error": {
+        "weekly_days_required": "Select at least one weekday.",
+        "invalid_monthly_ordinal": "Choose a valid week of the month.",
+        "invalid_date": "Enter a valid date.",
+        "date_in_past": "The first due date cannot be in the past."
+      }
+    }
+  },
+  "selector": {
+    "recurrence_type": {
+      "options": {
+        "interval": "Every X units after completion",
+        "weekly": "Weekly on selected days",
+        "monthly": "Monthly",
+        "yearly": "Yearly on a date"
+      }
+    },
+    "interval_unit": {
+      "options": {
+        "days": "Days",
+        "weeks": "Weeks",
+        "months": "Months",
+        "years": "Years"
+      }
+    },
+    "weekday": {
+      "options": {
+        "monday": "Monday",
+        "tuesday": "Tuesday",
+        "wednesday": "Wednesday",
+        "thursday": "Thursday",
+        "friday": "Friday",
+        "saturday": "Saturday",
+        "sunday": "Sunday"
+      }
+    },
+    "monthly_mode": {
+      "options": {
+        "day_of_month": "Specific day of month",
+        "ordinal_weekday": "Ordinal weekday (for example, first Monday)"
+      }
+    },
+    "monthly_ordinal": {
+      "options": {
+        "first": "First",
+        "second": "Second",
+        "third": "Third",
+        "fourth": "Fourth",
+        "fifth": "Fifth",
+        "last": "Last"
+      }
+    },
+    "month": {
+      "options": {
+        "1": "January",
+        "2": "February",
+        "3": "March",
+        "4": "April",
+        "5": "May",
+        "6": "June",
+        "7": "July",
+        "8": "August",
+        "9": "September",
+        "10": "October",
+        "11": "November",
+        "12": "December"
+      }
+    }
+  },
+  "entity": {
+    "button": {
+      "complete": { "name": "Complete" },
+      "snooze": { "name": "Snooze" },
+      "skip": { "name": "Skip" },
+      "reset": { "name": "Reset next due date" }
+    },
+    "sensor": {
+      "next_due": { "name": "Next chore due" },
+      "overdue_count": { "name": "Overdue chores" }
+    }
+  }
+}

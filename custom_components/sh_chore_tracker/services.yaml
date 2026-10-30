@@ -1,0 +1,285 @@
+complete_chore:
+  name: Complete Chore
+  description: Mark a chore as complete and calculate next due date
+  fields:
+    entity_id:
+      name: Entity
+      description: The chore entity to complete
+      required: true
+      selector:
+        entity:
+          filter:
+            domain: sensor
+            integration: sh_chore_tracker
+            device:
+              model: chore
+    completion_date:
+      name: Completion Date
+      description: Override completion date (defaults to now)
+      required: false
+      selector:
+        datetime:
+
+undo_complete_chore:
+  name: Undo Chore Completion
+  description: Undo a recent chore completion and restore the previous state
+  fields:
+    entity_id:
+      name: Entity
+      description: The chore entity to undo completion for
+      required: true
+      selector:
+        entity:
+          filter:
+            domain: sensor
+            integration: sh_chore_tracker
+            device:
+              model: chore
+
+snooze_chore:
+  name: Snooze Chore
+  description: Snooze a chore for specified number of days
+  fields:
+    entity_id:
+      name: Entity
+      description: The chore entity to snooze
+      required: true
+      selector:
+        entity:
+          filter:
+            domain: sensor
+            integration: sh_chore_tracker
+            device:
+              model: chore
+    days:
+      name: Days
+      description: Number of days to snooze (default 3)
+      required: false
+      default: 3
+      selector:
+        number:
+          min: 1
+          max: 365
+          mode: box
+    reason:
+      name: Reason
+      description: Optional reason for snoozing
+      required: false
+      selector:
+        text:
+
+skip_chore:
+  name: Skip Chore Instance
+  description: Skip this instance and move to next scheduled occurrence
+  fields:
+    entity_id:
+      name: Entity
+      description: The chore entity to skip
+      required: true
+      selector:
+        entity:
+          filter:
+            domain: sensor
+            integration: sh_chore_tracker
+            device:
+              model: chore
+    reason:
+      name: Reason
+      description: Optional reason for skipping
+      required: false
+      selector:
+        text:
+
+restore_chore:
+  name: Restore Chore Instance
+  description: Restore a recently skipped chore instance
+  fields:
+    entity_id:
+      name: Entity
+      description: The chore entity to restore
+      required: true
+      selector:
+        entity:
+          filter:
+            domain: sensor
+            integration: sh_chore_tracker
+            device:
+              model: chore
+
+reassign_chore:
+  name: Reassign Chore
+  description: Reassign chore to different person
+  fields:
+    entity_id:
+      name: Entity
+      description: The chore entity to reassign
+      required: true
+      selector:
+        entity:
+          filter:
+            domain: sensor
+            integration: sh_chore_tracker
+            device:
+              model: chore
+    person_id:
+      name: Person
+      description: Person entity to assign chore to
+      required: true
+      selector:
+        entity:
+          domain: person
+reset_next_due_date:
+  name: Reset Next Due Date
+  description: Recalculate the next due date from the last completion or first occurrence, ignoring snooze and skip overrides
+  fields:
+    entity_id:
+      name: Entity
+      description: The chore entity to reset
+      required: true
+      selector:
+        entity:
+          filter:
+            domain: sensor
+            integration: sh_chore_tracker
+            device:
+              model: chore
+
+create_chore:
+  name: Create Chore
+  description: Add a chore to the Chore Tracker household hub (admin only)
+  fields:
+    chore_name:
+      name: Chore Name
+      required: true
+      selector:
+        text:
+    chore_description:
+      name: Description
+      required: false
+      selector:
+        text:
+          multiline: true
+    recurrence_type:
+      name: Recurrence Type
+      required: true
+      selector:
+        select:
+          options:
+            - interval
+            - weekly
+            - monthly
+            - yearly
+    pattern_interval:
+      name: Interval
+      required: false
+      default: 1
+      selector:
+        number:
+          min: 1
+          max: 999
+          mode: box
+    interval_unit:
+      name: Interval Unit
+      required: false
+      default: days
+      selector:
+        select:
+          options:
+            - days
+            - weeks
+            - months
+            - years
+    assigned_person:
+      name: Assigned Person
+      required: false
+      selector:
+        entity:
+          domain: person
+    weekly_days:
+      name: Weekdays
+      required: false
+      selector:
+        select:
+          multiple: true
+          options:
+            - monday
+            - tuesday
+            - wednesday
+            - thursday
+            - friday
+            - saturday
+            - sunday
+    monthly_mode:
+      name: Monthly Rule
+      required: false
+      selector:
+        select:
+          options:
+            - day_of_month
+            - ordinal_weekday
+    monthly_day:
+      name: Day of Month
+      required: false
+      selector:
+        number:
+          min: 1
+          max: 31
+          mode: box
+    monthly_ordinal:
+      name: Week of Month
+      required: false
+      selector:
+        select:
+          options:
+            - first
+            - second
+            - third
+            - fourth
+            - fifth
+            - last
+    monthly_weekday:
+      name: Weekday
+      required: false
+      selector:
+        select:
+          options:
+            - monday
+            - tuesday
+            - wednesday
+            - thursday
+            - friday
+            - saturday
+            - sunday
+    yearly_month:
+      name: Month
+      required: false
+      selector:
+        number:
+          min: 1
+          max: 12
+          mode: box
+    yearly_day:
+      name: Day of Month
+      required: false
+      selector:
+        number:
+          min: 1
+          max: 31
+          mode: box
+    first_occurrence_date:
+      name: First Due Date
+      required: false
+      selector:
+        date:
+
+list_my_chores:
+  name: List My Chores
+  description: Return chores assigned to a person
+  fields:
+    person_id:
+      name: Person
+      description: Return chores assigned to this person
+      required: true
+      selector:
+        entity:
+          domain: person

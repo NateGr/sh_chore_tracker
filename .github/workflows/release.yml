@@ -25,7 +25,7 @@ concurrency:
 jobs:
   prepare:
     name: Validate and tag
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 40
     environment: release
     outputs:
@@ -60,7 +60,7 @@ jobs:
       - name: Set up release Python
         uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
         with:
-          python-version: "3.13"
+          python-version: "3.14.2"
       - name: Require imported integration
         run: python scripts/release.py check --require-integration
       - name: Freeze base commit
@@ -93,7 +93,7 @@ jobs:
           else
             git config user.name "smarthass-release[bot]"
             git config user.email "smarthass-release[bot]@users.noreply.github.com"
-            git add custom_components/chore_tracker/manifest.json
+            git add custom_components/sh_chore_tracker/manifest.json
             git -c commit.gpgsign=false commit -m "Release v$VERSION" -m "SmartHass-Release: $VERSION"
           fi
           echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
@@ -130,7 +130,7 @@ jobs:
           git fetch origin refs/heads/main:refs/remotes/origin/main --tags
           [[ "$(git rev-parse origin/main)" == "$BASE_COMMIT" ]] || { echo "main advanced during validation; rerun Release."; exit 1; }
           [[ "$(git rev-parse HEAD^)" == "$BASE_COMMIT" ]] || { echo "Candidate is not based on the frozen main commit."; exit 1; }
-          [[ "$(git diff-tree --no-commit-id --name-only -r HEAD)" == "custom_components/chore_tracker/manifest.json" ]] || { echo "Unexpected release commit changes."; exit 1; }
+          [[ "$(git diff-tree --no-commit-id --name-only -r HEAD)" == "custom_components/sh_chore_tracker/manifest.json" ]] || { echo "Unexpected release commit changes."; exit 1; }
           git tag -a "v$VERSION" "$CANDIDATE" -m "Release v$VERSION"
           authorization=$(printf 'x-access-token:%s' "$APP_TOKEN" | base64 -w0)
           echo "::add-mask::$authorization"

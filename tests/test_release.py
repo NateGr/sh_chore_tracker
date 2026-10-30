@@ -97,7 +97,7 @@ def test_partial_import_does_not_silently_skip_validation(repository):
 def imported_repository(repository):
     write_file(repository, "pyproject.toml", "[tool.smarthass]\nintegration-ready = true\n")
     manifest = {
-        "domain": "chore_tracker",
+        "domain": "sh_chore_tracker",
         "name": "SmartHass Chore Tracker",
         "documentation": "https://github.com/NateGr/sh_chore_tracker",
         "issue_tracker": "https://github.com/NateGr/sh_chore_tracker/issues",
@@ -105,13 +105,13 @@ def imported_repository(repository):
         "version": "0.2.0",
     }
     write_file(repository, MANIFEST.as_posix(), json.dumps(manifest))
-    write_file(repository, "custom_components/chore_tracker/__init__.py", "")
-    write_file(repository, "custom_components/chore_tracker/brand/icon.png", "test fixture")
+    write_file(repository, "custom_components/sh_chore_tracker/__init__.py", "")
+    write_file(repository, "custom_components/sh_chore_tracker/brand/icon.png", "test fixture")
     write_file(repository, "tests/test_config_flow.py", "")
     write_file(
         repository,
         "requirements_test.txt",
-        "pytest-homeassistant-custom-component==0.0.0\n",
+        "homeassistant==2026.9.0\n",
     )
     write_file(
         repository,
@@ -120,7 +120,7 @@ def imported_repository(repository):
             {
                 "name": "SmartHass Chore Tracker",
                 "content_in_root": False,
-                "homeassistant": "2026.3.0",
+                "homeassistant": "2026.9.0",
             }
         ),
     )
@@ -134,8 +134,8 @@ def test_import_readiness(imported_repository):
 @pytest.mark.parametrize(
     "relative",
     [
-        "custom_components/chore_tracker/__init__.py",
-        "custom_components/chore_tracker/brand/icon.png",
+        "custom_components/sh_chore_tracker/__init__.py",
+        "custom_components/sh_chore_tracker/brand/icon.png",
         "tests/test_config_flow.py",
     ],
 )
@@ -161,6 +161,7 @@ def test_wrong_manifest_metadata(imported_repository, field):
     "changes",
     [
         {"homeassistant": ""},
+        {"homeassistant": "2026.3.0"},
         {"zip_release": True},
         {"filename": "chore_tracker.zip"},
         {"name": "wrong"},
@@ -176,9 +177,9 @@ def test_wrong_hacs_metadata(imported_repository, changes):
         check_readiness(imported_repository)
 
 
-def test_missing_ha_test_dependency(imported_repository):
+def test_missing_homeassistant_test_dependency(imported_repository):
     write_file(imported_repository, "requirements_test.txt", "pytest==9.1.1\n")
-    with pytest.raises(ValueError, match="Pin a verified"):
+    with pytest.raises(ValueError, match="Pin Home Assistant"):
         check_readiness(imported_repository)
 
 
@@ -189,7 +190,9 @@ def test_readiness_requires_boolean(repository):
 
 
 def run_git(root, *arguments):
-    return subprocess.check_output(["git", *arguments], cwd=root, text=True).strip()
+    return subprocess.check_output(
+        ["git", "-c", "safe.bareRepository=all", *arguments], cwd=root, text=True
+    ).strip()
 
 
 @pytest.fixture
@@ -258,7 +261,7 @@ def test_recovery_rejects_commit_outside_main(released_repository):
     [
         ({"version": "0.2.0"}, {"version": "0.2.2"}, "0.2.1"),
         ({"version": "0.2.1"}, {"version": "0.2.1"}, "0.2.1"),
-        ({"version": "0.2.0", "domain": "chore_tracker"}, {"version": "0.2.1"}, "0.2.1"),
+        ({"version": "0.2.0", "domain": "sh_chore_tracker"}, {"version": "0.2.1"}, "0.2.1"),
     ],
 )
 def test_recovery_rejects_invalid_metadata(previous, candidate, version):

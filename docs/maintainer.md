@@ -1,56 +1,50 @@
 # Maintainer Guide
 
-## Current State
+## Supported Baseline
 
-The repository scaffold, release helper, and helper tests are ready. Integration
-code, its tests, a verified HA dependency set, and branding are not yet imported.
-`tool.smarthass.integration-ready` in `pyproject.toml` is deliberately `false`.
-Releases, including dry runs, refuse to proceed until the import is complete.
+The integration supports fresh installations and existing version-3 household
+hubs on Home Assistant 2026.9.0 or newer. Older helper/per-chore layouts and
+unsupported entry versions are rejected without rewriting or deleting data.
+Preserve the `sh_chore_tracker` domain, entry version, stable chore IDs, storage
+keys, and persisted runtime state when changing the implementation.
 
-## Import Checklist
+CI uses Ubuntu 24.04 and Python 3.14.2 with Home Assistant pinned to the minimum
+supported version. When changing that baseline, keep the setup-python steps,
+Ruff target, test requirements, HACS metadata, and user documentation aligned.
 
-1. Copy `custom_components/chore_tracker`, relevant tests/fixtures, required
-   runtime assets, useful user docs, and attribution from the old repository.
-   Do not copy its `.git`, development HA configuration, editor tasks, archived
-   planning documents, agent tooling, or release automation.
-2. Preserve `chore_tracker`, entity unique IDs, config-entry identity/version,
-   service names, and storage keys. Update the manifest display name to
-   `SmartHass Chore Tracker`, documentation to
-   `https://github.com/NateGr/sh_chore_tracker`, issue tracker to that URL plus
-   `/issues`, and include `@NateGr` in codeowners. Retain the actual current
-   version and required runtime metadata.
-3. Run imported tests before changing behavior. Select a compatible Python,
-   Home Assistant, and `pytest-homeassistant-custom-component` combination;
-   add a verified exact plugin pin to `requirements_test.txt`. Adjust pytest and
-   coverage pins together if needed. Enable only the asyncio/HA fixtures the
-   imported tests actually need. Do not infer compatibility from old docs.
-4. If the supported Python changes, update both setup-python steps and the Ruff
-   target in `pyproject.toml`, plus the contributor instructions. Set
-   `homeassistant` in `hacs.json` to the tested minimum and document it in README.
-5. Add a licensed `custom_components/chore_tracker/brand/icon.png`. Keep all
-   runtime integration files inside the integration directory. No custom ZIP
-   release is needed.
-6. Set `tool.smarthass.integration-ready = true`. Run the contributor checks,
-   `python scripts/release.py check --require-integration`, and the complete
-   imported test suite. The flag is an explicit maintainer assertion, not proof
-   that its dependency pins or minimum HA version have been tested.
-7. Remove the README's pending-import notice only when it is accurate to do so.
-   Retain any useful legacy changelog as historical documentation; GitHub release
-   notes are the source of new release history.
+Runtime files belong in `custom_components/sh_chore_tracker`. HACS uses tagged
+repository files; no custom ZIP release is needed. GitHub release notes record
+release changes and any compatibility limitations.
+
+## Validation
+
+Follow the [contributor checks](../CONTRIBUTING.md) and run:
+
+```bash
+python scripts/release.py check --require-integration
+```
+
+Keep `tool.smarthass.integration-ready = true` only while integration tests and
+metadata checks pass. This flag is not proof of live installation, licensing,
+or hosted permissions. Test clean installation and version-3 hub replacement,
+reload, and restart on a disposable Home Assistant instance. Back up existing
+configuration and storage before making live changes.
 
 ## GitHub Setup
 
-Commit and push the scaffold when ready. Hosting settings are not configured by
-these files. Do not enable required checks until the workflow has run and GitHub
-offers the correct check name.
+Configure hosting settings separately from the repository files. Verify the
+actual CI check name in GitHub before making it required.
 
 ### Repository
 
 Use `main` as the default branch. Add a description and topics such as
 `home-assistant`, `hacs`, `custom-component`, and `python`. Enable Issues, squash
 merges, and automatic deletion of merged branches. Disable unused wiki/projects.
-Enable private vulnerability reporting, dependency alerts, and secret scanning
-and push protection where available. Do not auto-merge dependency updates.
+Do not auto-merge dependency updates.
+
+Review dependency alerts, private vulnerability reporting, secret scanning,
+and push protection according to the repository's plan and visibility. Follow
+the [security policy](../.github/SECURITY.md) for vulnerability reports.
 
 ### Release App
 
@@ -134,32 +128,20 @@ Do not use a fresh default patch release to recover a publishing failure: that
 would create another version. Missing App credentials, failed checks, duplicate
 tags, and invalid versions stop the release rather than weakening the gates.
 
-## Public Cutover
+## Release Verification
 
-- Audit copied files and this repo's history for secrets, household data, private
-  URLs, destructive dev scripts, and licensing. Copying files instead of old Git
-  history reduces accidental disclosure. Rotate any exposed secrets; ignoring or
-  deleting them is not sufficient.
-- Make the repository public only after that audit. Run CI with actual repository
-  metadata and HACS checks enabled. HACS catalog inclusion is a separate optional
-  submission; custom-repository installation does not require it.
-- Run a dry release, then publish a version higher than the actual old release
-  baseline. Check tagged HACS installation and manual installation in a disposable
-  HA instance; no production household config should be used as a test sandbox.
-- Back up an existing installation and test the repository switch. Do not delete
-  HA integration entries or `.storage`. Do not leave both repositories managing
-  `chore_tracker`. HACS removal may remove installed files: test its current
-  behavior and reinstall from the new repo before restarting HA.
-- Verify entities, configuration, chores, and completion history survive. Publish
-  the exact tested migration steps; do not assume GitHub or HACS redirects them.
-- Only then update old support/install links, migrate essential issues, disable
-  old release automation, and archive the old repo read-only. If it remains
-  private, notify existing users directly. Preserve useful historical releases.
+Before publishing, verify a clean checkout, the full pinned Linux test suite,
+hassfest, public HACS validation, and a release dry run. Confirm required checks
+block a failing PR and the release App has only its intended bypass privileges.
+A dry run does not exercise App token creation or the production push.
 
-## Verification Before First Release
+Review licensing, release content, and Git history for secrets or household
+data. Rotate exposed credentials; deleting a file does not erase Git history.
+Keep operational release records and credentials outside the public tree.
 
-Verify a clean checkout and full HA test baseline on supported Python/Linux,
-actual fork and docs-only PR checks, a failed check blocking merge, a release dry
-run, App bypass against the rulesets, and successful HACS install/upgrade.
-Exercise invalid versions, stale-main rejection, duplicate tags, and publication
-recovery. Local scaffold tests do not prove GitHub permissions or HA compatibility.
+Exercise invalid-version rejection, stale-main rejection, tag collisions, and
+publication recovery in a controlled context without moving published tags.
+After publication, verify the release/tag SHA and tagged HACS/manual installation.
+For existing version-3 hubs, confirm entity identity, chores, assignments, counts,
+due dates, and completion history survive. Do not delete integration entries or
+storage merely to switch repositories, or install two copies of the domain.
