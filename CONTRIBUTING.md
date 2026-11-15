@@ -42,12 +42,16 @@ Run the same local checks used by CI:
 python scripts/release.py check
 python -m ruff check .
 python -m ruff format --check --exclude '*.md' .
+python -m mypy custom_components/sh_chore_tracker/ --ignore-missing-imports
 python -m pytest tests/ --cov=scripts --cov=custom_components/sh_chore_tracker --cov-report=term-missing
+python -m coverage report --include='*/custom_components/sh_chore_tracker/*' --fail-under=80
 ```
 
 Use `python -m ruff format --exclude '*.md' .` to apply formatting. Review any automatic lint fixes
-before committing. CI also measures coverage for
-`custom_components/sh_chore_tracker`.
+before committing. CI enforces at least 80% line coverage for the integration
+alone; release-helper coverage does not count toward that threshold. The mypy
+check ignores missing third-party imports and does not check untyped function
+bodies by default.
 
 CI also runs hassfest on the integration and HACS validation when the repository
 is public. Passing automated checks does not replace a live Home Assistant

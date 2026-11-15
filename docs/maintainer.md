@@ -11,6 +11,8 @@ keys, and persisted runtime state when changing the implementation.
 CI uses Ubuntu 24.04 and Python 3.14.2 with Home Assistant pinned to the minimum
 supported version. When changing that baseline, keep the setup-python steps,
 Ruff target, test requirements, HACS metadata, and user documentation aligned.
+The shared CI and release validation also runs mypy on the integration and
+requires at least 80% integration-only line coverage.
 
 Runtime files belong in `custom_components/sh_chore_tracker`. HACS uses tagged
 repository files; no custom ZIP release is needed. GitHub release notes record

@@ -37,6 +37,10 @@ runs:
     - name: Check formatting
       shell: bash
       run: python -m ruff format --check --exclude '*.md' .
+    - name: Type check integration
+      if: steps.readiness.outputs.integration-ready == 'true'
+      shell: bash
+      run: python -m mypy custom_components/sh_chore_tracker/ --ignore-missing-imports
     - name: Test
       shell: bash
       env:
@@ -47,6 +51,10 @@ runs:
           arguments+=(--cov=custom_components/sh_chore_tracker)
         fi
         python -m pytest tests/ "${arguments[@]}"
+    - name: Enforce integration coverage
+      if: steps.readiness.outputs.integration-ready == 'true'
+      shell: bash
+      run: python -m coverage report --include='*/custom_components/sh_chore_tracker/*' --fail-under=80
     - name: Validate Home Assistant metadata
       if: steps.readiness.outputs.integration-ready == 'true'
       uses: home-assistant/actions/hassfest@06749dd8c0b54f350bc69c8752456cee498808a3 # master
