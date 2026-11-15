@@ -1,13 +1,19 @@
 """Configuration flow for SmartHass Chore Tracker."""
 
+from collections.abc import Mapping
 from types import MappingProxyType
-from typing import Any, Self
+from typing import TYPE_CHECKING, Any, Generic, Self, TypeVar
 from uuid import uuid4
 
 import voluptuous as vol
-from homeassistant.config_entries import ConfigEntry, ConfigFlow, ConfigSubentryFlow
+from homeassistant.config_entries import (
+    ConfigEntry,
+    ConfigFlow,
+    ConfigFlowResult,
+    ConfigSubentryFlow,
+    SubentryFlowResult,
+)
 from homeassistant.core import callback
-from homeassistant.data_entry_flow import FlowResult
 from homeassistant.helpers import selector
 from homeassistant.util import dt as dt_util
 
@@ -49,9 +55,10 @@ from .const import (
 from .date_utils import coerce_date, normalize_first_occurrence_date
 
 _MONTH_OPTIONS = [str(month) for month in range(1, 13)]
+_FlowResultT = TypeVar("_FlowResultT", ConfigFlowResult, SubentryFlowResult)
 
 
-class ChoreFlowMixin:
+class ChoreFlowMixin(Generic[_FlowResultT]):
     """Shared multi-step flow logic for creating and editing a chore.
 
     Both `ChoreTrackerConfigFlow` (hub bootstrap) and `ChoreTrackerChoreSubentryFlow` (chore)
@@ -62,6 +69,19 @@ class ChoreFlowMixin:
     _data: dict[str, Any]
     hass: Any
 
+    if TYPE_CHECKING:
+
+        def async_show_form(
+            self,
+            *,
+            step_id: str | None = None,
+            data_schema: vol.Schema | None = None,
+            errors: dict[str, str] | None = None,
+            description_placeholders: Mapping[str, str] | None = None,
+            last_step: bool | None = None,
+            preview: str | None = None,
+        ) -> _FlowResultT: ...
+
     def _defaults(self) -> dict[str, Any]:
         """Return the values to prefill the flow with (empty for create flow)."""
         return {}
@@ -70,13 +90,13 @@ class ChoreFlowMixin:
         """Return True if this is the initial creation flow (vs. editing)."""
         raise NotImplementedError
 
-    async def _async_finish_flow(self) -> FlowResult:
+    async def _async_finish_flow(self) -> _FlowResultT:
         """Persist the collected chore data and finish the flow."""
         raise NotImplementedError
 
-    def _person_options(self) -> list[dict[str, str]]:
+    def _person_options(self) -> list[selector.SelectOptionDict]:
         """Build the list of assignable person selector options."""
-        options = [{"value": "none", "label": "No assignment"}]
+        options: list[selector.SelectOptionDict] = [{"value": "none", "label": "No assignment"}]
         hass = getattr(self, "hass", None)
         if hass is not None:
             for entity_id in hass.states.async_entity_ids("person"):
@@ -97,7 +117,7 @@ class ChoreFlowMixin:
 
     async def _show_basic_info(
         self, step_id: str, user_input: dict[str, Any] | None = None
-    ) -> FlowResult:
+    ) -> _FlowResultT:
         """Step 1: chore name, description, and assigned person."""
         if user_input is not None and CONF_CHORE_NAME in user_input:
             self._data.update(user_input)
@@ -125,7 +145,7 @@ class ChoreFlowMixin:
 
     async def async_step_recurrence_type(
         self, user_input: dict[str, Any] | None = None
-    ) -> FlowResult:
+    ) -> _FlowResultT:
         """Step 2: pick which recurrence pattern this chore follows."""
         if user_input is not None:
             self._data.update(user_input)
@@ -160,7 +180,7 @@ class ChoreFlowMixin:
 
     async def async_step_interval_config(
         self, user_input: dict[str, Any] | None = None
-    ) -> FlowResult:
+    ) -> _FlowResultT:
         """Step 3a: interval recurrence fields (only shown for interval type)."""
         if user_input is not None:
             self._data.update(user_input)
@@ -196,7 +216,7 @@ class ChoreFlowMixin:
 
     async def async_step_weekly_config(
         self, user_input: dict[str, Any] | None = None
-    ) -> FlowResult:
+    ) -> _FlowResultT:
         """Step 3b: weekly recurrence fields (only shown for weekly type)."""
         errors: dict[str, str] = {}
         if user_input is not None:
@@ -222,7 +242,7 @@ class ChoreFlowMixin:
 
     async def async_step_monthly_config(
         self, user_input: dict[str, Any] | None = None
-    ) -> FlowResult:
+    ) -> _FlowResultT:
         """Step 3c: choose day-of-month vs. ordinal-weekday monthly mode."""
         if user_input is not None:
             self._data.update(user_input)
@@ -250,7 +270,7 @@ class ChoreFlowMixin:
 
     async def async_step_monthly_day_of_month(
         self, user_input: dict[str, Any] | None = None
-    ) -> FlowResult:
+    ) -> _FlowResultT:
         """Step 3c-i: specific day-of-month sub-branch."""
         if user_input is not None:
             self._data.update(user_input)
@@ -272,7 +292,7 @@ class ChoreFlowMixin:
 
     async def async_step_monthly_ordinal_weekday(
         self, user_input: dict[str, Any] | None = None
-    ) -> FlowResult:
+    ) -> _FlowResultT:
         """Step 3c-ii: ordinal weekday sub-branch (e.g. 'first Monday')."""
         errors: dict[str, str] = {}
         if user_input is not None:
@@ -309,7 +329,7 @@ class ChoreFlowMixin:
 
     async def async_step_yearly_config(
         self, user_input: dict[str, Any] | None = None
-    ) -> FlowResult:
+    ) -> _FlowResultT:
         """Step 3d: yearly recurrence fields (only shown for yearly type)."""
         if user_input is not None:
             user_input[CONF_YEARLY_MONTH] = int(user_input[CONF_YEARLY_MONTH])
@@ -338,7 +358,7 @@ class ChoreFlowMixin:
 
     async def async_step_first_occurrence(
         self, user_input: dict[str, Any] | None = None
-    ) -> FlowResult:
+    ) -> _FlowResultT:
         """Final step: pick and validate the first occurrence date, then finish."""
         errors: dict[str, str] = {}
         if user_input is not None:
@@ -369,7 +389,7 @@ class ChoreFlowMixin:
         return self.async_show_form(step_id="first_occurrence", data_schema=schema, errors=errors)
 
 
-class ChoreTrackerConfigFlow(ChoreFlowMixin, ConfigFlow, domain=DOMAIN):
+class ChoreTrackerConfigFlow(ChoreFlowMixin[ConfigFlowResult], ConfigFlow, domain=DOMAIN):
     """Create the Chore Tracker hub and its first chore."""
 
     VERSION = CONFIG_ENTRY_VERSION
@@ -382,7 +402,7 @@ class ChoreTrackerConfigFlow(ChoreFlowMixin, ConfigFlow, domain=DOMAIN):
         """Initialize the flow's in-progress chore data."""
         self._data: dict[str, Any] = {}
 
-    async def async_step_user(self, user_input: dict[str, Any] | None = None) -> FlowResult:
+    async def async_step_user(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
         """Set up the single household hub."""
         if self._async_current_entries():
             return self.async_abort(reason="single_instance_allowed")
@@ -393,7 +413,7 @@ class ChoreTrackerConfigFlow(ChoreFlowMixin, ConfigFlow, domain=DOMAIN):
     def _is_create_flow(self) -> bool:
         return True
 
-    async def _async_finish_flow(self) -> FlowResult:
+    async def _async_finish_flow(self) -> ConfigFlowResult:
         return self.async_create_entry(
             title="Chore Tracker",
             data={CONF_HUB_ENTRY: True},
@@ -416,7 +436,7 @@ class ChoreTrackerConfigFlow(ChoreFlowMixin, ConfigFlow, domain=DOMAIN):
         return {SUBENTRY_TYPE_CHORE: ChoreTrackerChoreSubentryFlow}
 
 
-class ChoreTrackerChoreSubentryFlow(ChoreFlowMixin, ConfigSubentryFlow):
+class ChoreTrackerChoreSubentryFlow(ChoreFlowMixin[SubentryFlowResult], ConfigSubentryFlow):
     """Add or edit a chore under the household hub."""
 
     def __init__(self) -> None:
@@ -424,11 +444,13 @@ class ChoreTrackerChoreSubentryFlow(ChoreFlowMixin, ConfigSubentryFlow):
         self._data: dict[str, Any] = {}
         self._editing = False
 
-    async def async_step_user(self, user_input: dict[str, Any] | None = None) -> FlowResult:
+    async def async_step_user(self, user_input: dict[str, Any] | None = None) -> SubentryFlowResult:
         """Start adding a chore to the hub."""
         return await self._show_basic_info("user", user_input)
 
-    async def async_step_reconfigure(self, user_input: dict[str, Any] | None = None) -> FlowResult:
+    async def async_step_reconfigure(
+        self, user_input: dict[str, Any] | None = None
+    ) -> SubentryFlowResult:
         """Start editing an existing chore subentry."""
         self._editing = True
         self._data = dict(self._get_reconfigure_subentry().data)
@@ -442,7 +464,7 @@ class ChoreTrackerChoreSubentryFlow(ChoreFlowMixin, ConfigSubentryFlow):
     def _is_create_flow(self) -> bool:
         return not self._editing
 
-    async def _async_finish_flow(self) -> FlowResult:
+    async def _async_finish_flow(self) -> SubentryFlowResult:
         if self._editing:
             self.hass.config_entries.async_update_subentry(
                 entry=self._get_entry(),

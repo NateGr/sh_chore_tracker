@@ -697,7 +697,9 @@ class ChoreCoordinator(DataUpdateCoordinator):
         self.entry = entry
         self._chores: dict[str, dict[str, Any]] = {}
         self._subentry_to_chore: dict[str, str] = {}
-        self._store = Store(hass, 1, f"sh_chore_tracker_hub_{entry.entry_id}")
+        self._store: Store[dict[str, Any]] = Store(
+            hass, 1, f"sh_chore_tracker_hub_{entry.entry_id}"
+        )
         self._initialize_chore_data()
 
     def _initialize_chore_data(self):
