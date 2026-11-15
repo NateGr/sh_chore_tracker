@@ -6,7 +6,7 @@ The Chore Tracker hub provides chore lifecycle services and household create/lis
 
 The entity pickers for chore-targeted actions filter by the integration's device model `chore`. Summary devices use model `Summary` and are excluded. This filtering also works when chore entities are renamed.
 
-Each chore device also exposes Complete, Snooze, Skip, and Reset next due date button entities. They invoke the same services described below, using the chore's current sensor entity ID. The Snooze button uses the default three-day duration; use the service for a custom duration or reason.
+The Complete, Snooze, Skip, and Reset next due date device button entities are deprecated and retained for one release. Prefer the [Chore Summary Lovelace Card](configuration-reference.md#chore-summary-lovelace-card) for dashboard controls. The underlying services remain supported for automations and scripts; `snooze_chore` accepts a custom duration or reason.
 
 ## Service Calls
 

@@ -6,6 +6,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from custom_components.sh_chore_tracker.const import (
+    DEFAULT_SNOOZE_DAYS,
     DOMAIN,
     SUBENTRY_TYPE_CHORE,
     SUBENTRY_TYPE_SUMMARY,
@@ -105,6 +106,7 @@ def test_attributes_read_the_individual_chore_record(
     assert attributes["next_due_date"] == next_due.isoformat()
     assert attributes["status"] == status
     assert attributes["days_until_due"] == days_until_due
+    assert attributes["default_snooze_days"] == DEFAULT_SNOOZE_DAYS
     assert attributes["created_at"] == "2026-05-26T19:31:27"
     assert attributes["assigned_person"] == "none"
     assert attributes["description"] == "Desc"

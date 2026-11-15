@@ -210,10 +210,10 @@
   },
   "entity": {
     "button": {
-      "complete": { "name": "Complete" },
-      "snooze": { "name": "Snooze" },
-      "skip": { "name": "Skip" },
-      "reset": { "name": "Reset next due date" }
+      "complete": { "name": "Complete (Deprecated)" },
+      "snooze": { "name": "Snooze (Deprecated)" },
+      "skip": { "name": "Skip (Deprecated)" },
+      "reset": { "name": "Reset next due date (Deprecated)" }
     },
     "sensor": {
       "next_due": { "name": "Next chore due" },

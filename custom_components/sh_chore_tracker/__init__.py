@@ -2,11 +2,13 @@
 
 import logging
 from datetime import date, datetime, timedelta
+from pathlib import Path
 from types import MappingProxyType
 from typing import Any, Dict
 from uuid import uuid4
 
 import voluptuous as vol
+from homeassistant.components.http import StaticPathConfig
 from homeassistant.config_entries import ConfigEntry, ConfigSubentry
 from homeassistant.const import ATTR_ENTITY_ID, Platform
 from homeassistant.core import HomeAssistant, ServiceCall, SupportsResponse
@@ -512,6 +514,7 @@ _LOGGER = logging.getLogger(__name__)
 CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
 
 PLATFORMS: list[Platform] = [Platform.SENSOR, Platform.BUTTON]
+CHORE_SUMMARY_CARD_URL = f"/{DOMAIN}/chore-summary-card.js"
 
 # Update interval for coordinator
 UPDATE_INTERVAL = timedelta(minutes=15)
@@ -544,6 +547,15 @@ async def async_setup(hass: HomeAssistant, _config: ConfigType) -> bool:
         )
     if len(entries) > 1:
         raise HomeAssistantError("Multiple Chore Tracker hubs are configured")
+    await hass.http.async_register_static_paths(
+        [
+            StaticPathConfig(
+                CHORE_SUMMARY_CARD_URL,
+                str(Path(__file__).parent / "www" / "chore-summary-card.js"),
+                cache_headers=False,
+            )
+        ]
+    )
     return True
 
 

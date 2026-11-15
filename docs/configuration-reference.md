@@ -95,14 +95,27 @@ Existing hubs receive the summary group automatically on their next load, withou
 
 ## Chore Device Controls
 
-Each chore device includes four button entities alongside its sensor:
+Each chore device includes a sensor and the deprecated button entities Complete, Snooze, Skip, and Reset next due date. The buttons remain available for one release as a migration period; their names include `(Deprecated)`. The underlying services remain supported.
 
-- **Complete** marks the chore complete and calculates the next due date.
-- **Snooze** postpones the chore by the default three days. Use the `snooze_chore` action to specify a different duration or a reason.
-- **Skip** skips the current occurrence and moves to the next scheduled one.
-- **Reset next due date** recalculates the due date from the last completion or first occurrence and clears snooze and skip overrides.
+### Chore Summary Lovelace Card
 
-These controls are available on the chore's device page and can be added to dashboards. They do not modify Home Assistant's standard sensor more-info popup. The overall summary device has no chore action buttons.
+The custom card provides Skip, Complete, Restore, Reset, and Snooze actions in one dashboard panel. It calls the existing integration services and does not replace the sensor's standard more-info dialog.
+
+After the integration is loaded, add this JavaScript module as a dashboard resource under **Settings > Dashboards > Resources**:
+
+```text
+URL: /sh_chore_tracker/chore-summary-card.js
+Resource type: JavaScript module
+```
+
+Add one card per chore and set `entity` to that chore's sensor entity ID:
+
+```yaml
+type: custom:sh-chore-summary-card
+entity: sensor.chore_laundry
+```
+
+The snooze field accepts whole days from 1 to 365 and defaults from the chore sensor's `default_snooze_days` attribute (3 days by default). Invalid values are rejected before the service is called. Existing button entities are planned for removal in a later breaking release; migrate dashboard controls to this card. Automations may continue to use the documented services.
 
 ## Pattern-Specific Fields
 
@@ -217,6 +230,10 @@ condition:
 ### `integration_domain` Attribute
 
 Every chore entity exposes `integration_domain: sh_chore_tracker`. Use this for reliable entity filtering that survives entity renames.
+
+### `default_snooze_days` Attribute
+
+The default whole-day duration accepted by `snooze_chore`. The chore summary card uses this value to initialize its snooze field; the current default is 3 days.
 
 ### Recommended auto-entities Filter
 

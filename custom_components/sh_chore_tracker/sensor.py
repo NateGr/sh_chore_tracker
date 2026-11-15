@@ -26,6 +26,7 @@ from .const import (
     CONF_ASSIGNED_PERSON,
     CONF_CHORE_DESCRIPTION,
     CONF_CHORE_NAME,
+    DEFAULT_SNOOZE_DAYS,
     DOMAIN,
     HUB_UNIQUE_ID,
     SUBENTRY_TYPE_CHORE,
@@ -315,6 +316,7 @@ class ChoreEntity(CoordinatorEntity[ChoreCoordinator], SensorEntity):
                 "status": self._get_status(),
                 "integration_domain": DOMAIN,
                 "days_until_due": self._compute_days_until_due(),
+                "default_snooze_days": DEFAULT_SNOOZE_DAYS,
                 "next_due_date": next_due.isoformat() if next_due else None,
                 "completion_count": state.get("completion_count", state.get("completed_count", 0)),
                 "last_completed_date": self._format_datetime_attr(

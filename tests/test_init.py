@@ -1,6 +1,7 @@
 """Test the Chore Tracker integration initialization and RecurrenceEngine."""
 
 from datetime import date, datetime
+from pathlib import Path
 from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
@@ -82,6 +83,21 @@ async def test_setup_entry():
             assert result is True
             assert DOMAIN in hass.data
             assert entry.entry_id in hass.data[DOMAIN]
+
+
+@pytest.mark.asyncio
+async def test_setup_registers_chore_summary_card_resource() -> None:
+    hass = Mock()
+    hass.config_entries.async_entries.return_value = []
+    hass.http.async_register_static_paths = AsyncMock()
+
+    assert await async_setup(hass, {}) is True
+
+    hass.http.async_register_static_paths.assert_awaited_once()
+    static_path = hass.http.async_register_static_paths.await_args.args[0][0]
+    assert static_path.url_path == "/sh_chore_tracker/chore-summary-card.js"
+    assert static_path.path.replace("\\", "/").endswith("www/chore-summary-card.js")
+    assert Path(static_path.path).is_file()
 
 
 def test_chore_entity_lookup_ignores_buttons() -> None:
@@ -300,6 +316,7 @@ async def test_unload_entry():
 @pytest.mark.parametrize("existing_hub", [False, True])
 async def test_setup_accepts_fresh_or_current_hub_without_modification(existing_hub):
     hass = Mock()
+    hass.http.async_register_static_paths = AsyncMock()
     entry = Mock(version=3, data={"is_hub_entry": True})
     hass.config_entries.async_entries.return_value = [entry] if existing_hub else []
     with patch("custom_components.sh_chore_tracker.Store") as store:
@@ -421,6 +438,7 @@ async def test_hub_coordinator_initializes_all_chore_subentries():
 @pytest.mark.asyncio
 async def test_existing_v3_hub_preserves_identity_and_state_across_reload():
     hass = Mock()
+    hass.http.async_register_static_paths = AsyncMock()
     entry = Mock(entry_id="existing_hub", version=3, data={"is_hub_entry": True})
     subentry = Mock(
         subentry_id="existing_subentry",
