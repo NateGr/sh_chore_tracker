@@ -1,4 +1,4 @@
-"""Validate repository readiness and select stable release versions."""
+"""Validate repository readiness and select release versions."""
 
 import argparse
 import json
@@ -12,6 +12,10 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 MANIFEST = Path("custom_components/sh_chore_tracker/manifest.json")
 VERSION_PATTERN = re.compile(r"(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)")
+PRERELEASE_PATTERN = re.compile(
+    r"(?P<base>(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)\."
+    r"(?:0|[1-9][0-9]*))rc(?P<number>[1-9][0-9]*)"
+)
 
 
 def parse_version(value: str) -> tuple[int, int, int]:
@@ -36,6 +40,22 @@ def select_version(current: str, bump: str, override: str = "") -> str:
     raise ValueError(f"Unknown version bump: {bump}")
 
 
+def parse_release_version(value: str) -> tuple[tuple[int, int, int], bool]:
+    if match := PRERELEASE_PATTERN.fullmatch(value):
+        return parse_version(match["base"]), True
+    return parse_version(value), False
+
+
+def select_prerelease(root: Path, version: str) -> str:
+    tags = git(root, "tag", "--list", f"v{version}rc*").splitlines()
+    numbers = []
+    for tag in tags:
+        match = PRERELEASE_PATTERN.fullmatch(tag.removeprefix("v"))
+        if match and match["base"] == version:
+            numbers.append(int(match["number"]))
+    return f"{version}rc{max(numbers, default=0) + 1}"
+
+
 def release_baseline(current: str, pages: list) -> str:
     versions = [parse_version(current)]
     for page in pages:
@@ -56,11 +76,15 @@ def git(root: Path, *arguments: str) -> str:
     ).strip()
 
 
-def prepare(root: Path, pages: list, bump: str, override: str) -> dict[str, str]:
+def prepare(
+    root: Path, pages: list, bump: str, override: str, prerelease: bool = False
+) -> dict[str, str]:
     check_readiness(root, require_integration=True)
     manifest_path = root / MANIFEST
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     version = select_version(release_baseline(manifest["version"], pages), bump, override)
+    if prerelease:
+        version = select_prerelease(root, version)
     result = subprocess.run(
         ["git", "show-ref", "--verify", "--quiet", f"refs/tags/v{version}"], cwd=root
     )
@@ -74,7 +98,8 @@ def prepare(root: Path, pages: list, bump: str, override: str) -> dict[str, str]
 def verify_release_metadata(previous: dict, candidate: dict, version: str) -> None:
     if candidate.get("version") != version:
         raise ValueError("Release manifest version does not match the requested tag.")
-    if parse_version(version) <= parse_version(previous["version"]):
+    base_version, _ = parse_release_version(version)
+    if base_version <= parse_version(previous["version"]):
         raise ValueError("Release commit does not increase the manifest version.")
     previous = previous.copy()
     previous["version"] = version
@@ -83,14 +108,14 @@ def verify_release_metadata(previous: dict, candidate: dict, version: str) -> No
 
 
 def recover(root: Path, version: str) -> dict[str, str]:
-    parse_version(version)
+    _, prerelease = parse_release_version(version)
     if git(root, "cat-file", "-t", f"refs/tags/v{version}") != "tag":
         raise ValueError("Recovery requires an annotated release tag.")
     candidate = git(root, "rev-parse", f"refs/tags/v{version}^{{commit}}")
-    git(root, "merge-base", "--is-ancestor", candidate, "origin/main")
     parents = git(root, "rev-list", "--parents", "-n", "1", candidate).split()
     if len(parents) != 2:
         raise ValueError("Expected a release commit with exactly one parent.")
+    git(root, "merge-base", "--is-ancestor", parents[1] if prerelease else candidate, "origin/main")
     message = git(root, "show", "-s", "--format=%B", candidate)
     if f"SmartHass-Release: {version}" not in message.splitlines():
         raise ValueError("Tag does not point to a recognized release commit.")
@@ -128,7 +153,7 @@ def check_readiness(root: Path, *, require_integration: bool = False) -> bool:
     for key, value in expected.items():
         if manifest.get(key) != value:
             raise ValueError(f"manifest.{key} must be {value!r}.")
-    parse_version(manifest["version"])
+    parse_release_version(manifest["version"])
     if "@NateGr" not in manifest.get("codeowners", []):
         raise ValueError("manifest.codeowners must include @NateGr.")
     if not (integration / "brand/icon.png").is_file():
@@ -159,6 +184,7 @@ def main() -> None:
     parser.add_argument("--bump", choices=["patch", "minor", "major"], default="patch")
     parser.add_argument("--version", default="")
     parser.add_argument("--releases", type=Path)
+    parser.add_argument("--prerelease", action="store_true")
     arguments = parser.parse_args()
     try:
         if arguments.command == "check":
@@ -170,12 +196,16 @@ def main() -> None:
                 else "Scaffold only; integration not imported."
             )
         elif arguments.command == "recover":
+            if arguments.prerelease:
+                raise ValueError("Recovery determines release type from the version.")
             values = recover(ROOT, arguments.version)
         else:
             if arguments.releases is None:
                 raise ValueError("prepare requires --releases with paginated GitHub release JSON.")
             pages = json.loads(arguments.releases.read_text(encoding="utf-8"))
-            values = prepare(ROOT, pages, arguments.bump, arguments.version)
+            values = prepare(ROOT, pages, arguments.bump, arguments.version, arguments.prerelease)
+        if arguments.command != "check":
+            values["prerelease"] = str(parse_release_version(values["version"])[1]).lower()
     except (KeyError, OSError, TypeError, ValueError, subprocess.CalledProcessError) as error:
         parser.exit(1, f"Release preflight failed: {error}\n")
     print(json.dumps(values))

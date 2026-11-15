@@ -10,6 +10,7 @@ from scripts import release as release_module
 from scripts.release import (
     MANIFEST,
     check_readiness,
+    parse_release_version,
     parse_version,
     prepare,
     recover,
@@ -131,6 +132,25 @@ def test_import_readiness(imported_repository):
     assert check_readiness(imported_repository, require_integration=True)
 
 
+@pytest.mark.parametrize("version", ["0.2.1rc1", "0.2.1rc2"])
+def test_readiness_accepts_prerelease_candidate(imported_repository, version):
+    manifest_path = imported_repository / MANIFEST
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest["version"] = version
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+    assert check_readiness(imported_repository, require_integration=True)
+
+
+@pytest.mark.parametrize("version", ["0.2.1rc0", "0.2.1rc01", "0.2.1-rc.1"])
+def test_readiness_rejects_invalid_prerelease(imported_repository, version):
+    manifest_path = imported_repository / MANIFEST
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest["version"] = version
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+    with pytest.raises(ValueError):
+        check_readiness(imported_repository, require_integration=True)
+
+
 @pytest.mark.parametrize(
     "relative",
     [
@@ -220,6 +240,33 @@ def test_prepare_rejects_existing_tag(git_repository):
         prepare(git_repository, [], "patch", "")
 
 
+def test_prepare_prerelease_numbers_existing_tags(git_repository):
+    for tag in ("v0.2.1rc1", "v0.2.1rc3", "v0.2.1rc01", "v0.2.2rc9"):
+        run_git(git_repository, "tag", tag)
+    previous = json.loads((git_repository / MANIFEST).read_text(encoding="utf-8"))
+    assert prepare(git_repository, [], "patch", "", prerelease=True) == {"version": "0.2.1rc4"}
+    candidate = json.loads((git_repository / MANIFEST).read_text(encoding="utf-8"))
+    verify_release_metadata(previous, candidate, "0.2.1rc4")
+    assert check_readiness(git_repository, require_integration=True)
+    assert run_git(git_repository, "diff", "--name-only") == MANIFEST.as_posix()
+
+
+def test_prerelease_target_must_exceed_stable_baseline(git_repository):
+    with pytest.raises(ValueError, match="greater"):
+        prepare(git_repository, [], "patch", "0.2.0", prerelease=True)
+
+
+def test_stable_release_can_follow_prerelease(git_repository):
+    run_git(git_repository, "tag", "v0.2.1rc1")
+    assert prepare(git_repository, [], "patch", "") == {"version": "0.2.1"}
+
+
+@pytest.mark.parametrize("version", ["0.2.1rc0", "0.2.1rc01", "0.2.1-rc.1", "v0.2.1rc1"])
+def test_invalid_release_versions(version):
+    with pytest.raises(ValueError):
+        parse_release_version(version)
+
+
 @pytest.fixture
 def released_repository(git_repository):
     prepare(git_repository, [], "patch", "")
@@ -254,6 +301,39 @@ def test_recovery_rejects_commit_outside_main(released_repository):
     run_git(released_repository, "update-ref", "refs/remotes/origin/main", "HEAD^")
     with pytest.raises(subprocess.CalledProcessError):
         recover(released_repository, "0.2.1")
+
+
+def test_recovery_of_tag_only_prerelease(git_repository, remote_repository):
+    run_git(git_repository, "commit", "--allow-empty", "-m", "New main commit")
+    run_git(git_repository, "push", "origin", "main")
+    base = run_git(git_repository, "rev-parse", "HEAD")
+    prepare(git_repository, [], "patch", "", prerelease=True)
+    run_git(git_repository, "add", MANIFEST.as_posix())
+    run_git(git_repository, "commit", "-m", "Release v0.2.1rc1\n\nSmartHass-Release: 0.2.1rc1")
+    run_git(git_repository, "tag", "-a", "v0.2.1rc1", "-m", "Release v0.2.1rc1")
+    candidate = run_git(git_repository, "rev-parse", "HEAD")
+    run_git(git_repository, "push", "origin", "refs/tags/v0.2.1rc1")
+    assert run_git(remote_repository, "rev-parse", "refs/heads/main") == base
+    assert run_git(remote_repository, "rev-parse", "refs/tags/v0.2.1rc1^{commit}") == candidate
+    assert recover(git_repository, "0.2.1rc1") == {"version": "0.2.1rc1", "candidate": candidate}
+    run_git(git_repository, "update-ref", "refs/remotes/origin/main", base + "^")
+    with pytest.raises(subprocess.CalledProcessError):
+        recover(git_repository, "0.2.1rc1")
+
+
+def test_cli_recovers_prerelease(git_repository, monkeypatch, tmp_path_factory):
+    run_git(git_repository, "update-ref", "refs/remotes/origin/main", "HEAD")
+    prepare(git_repository, [], "patch", "", prerelease=True)
+    run_git(git_repository, "add", MANIFEST.as_posix())
+    run_git(git_repository, "commit", "-m", "Release v0.2.1rc1\n\nSmartHass-Release: 0.2.1rc1")
+    run_git(git_repository, "tag", "-a", "v0.2.1rc1", "-m", "Release v0.2.1rc1")
+    output = tmp_path_factory.mktemp("prerelease-recovery") / "outputs.txt"
+    monkeypatch.setattr(release_module, "ROOT", git_repository)
+    monkeypatch.setattr("sys.argv", ["release.py", "recover", "--version", "0.2.1rc1"])
+    monkeypatch.setenv("GITHUB_OUTPUT", str(output))
+    release_module.main()
+    assert "version=0.2.1rc1\n" in output.read_text(encoding="utf-8")
+    assert "prerelease=true\n" in output.read_text(encoding="utf-8")
 
 
 @pytest.mark.parametrize(
@@ -305,6 +385,7 @@ def test_cli_outputs_scaffold_status(repository, monkeypatch, capsys):
         ["check", "--require-integration"],
         ["prepare"],
         ["recover", "--version", "malformed"],
+        ["recover", "--version", "0.2.1rc1", "--prerelease"],
     ],
 )
 def test_cli_errors_fail_closed(repository, monkeypatch, capsys, arguments):
@@ -324,7 +405,20 @@ def test_cli_prepares_version(git_repository, monkeypatch, tmp_path_factory):
     monkeypatch.setattr("sys.argv", ["release.py", "prepare", "--releases", str(releases_path)])
     monkeypatch.setenv("GITHUB_OUTPUT", str(output))
     release_module.main()
-    assert output.read_text(encoding="utf-8") == "version=0.2.1\n"
+    assert output.read_text(encoding="utf-8") == "version=0.2.1\nprerelease=false\n"
+
+
+def test_cli_prepares_prerelease(git_repository, monkeypatch, tmp_path_factory):
+    releases_path = tmp_path_factory.mktemp("prerelease-input") / "releases.json"
+    releases_path.write_text("[]", encoding="utf-8")
+    output = releases_path.parent / "outputs.txt"
+    monkeypatch.setattr(release_module, "ROOT", git_repository)
+    monkeypatch.setattr(
+        "sys.argv", ["release.py", "prepare", "--releases", str(releases_path), "--prerelease"]
+    )
+    monkeypatch.setenv("GITHUB_OUTPUT", str(output))
+    release_module.main()
+    assert output.read_text(encoding="utf-8") == "version=0.2.1rc1\nprerelease=true\n"
 
 
 def test_cli_recovers_version(released_repository, monkeypatch, tmp_path_factory):

@@ -108,8 +108,28 @@ Select **dry-run** to validate the proposed release without creating remote refs
 or a release. A private repo permits dry runs but skips HACS checks; production
 publication requires public visibility and passing HACS validation.
 
+To validate a feature branch before merging, select that branch and **dry-run**
+in the Release workflow. It creates and validates a local candidate based on
+that branch, without using the protected release environment or its App
+credentials. It does not test the push or publication paths. Non-dry runs and
+recovery are restricted to `main`.
+
 If `main` advances while validation runs, the push is rejected. Rerun against
 the new commit. The workflow never rebases validated code or force-pushes.
+
+### Prereleases
+
+Select **prerelease** to publish a test version. Choose a bump or provide a
+stable target such as `0.5.3` without an `rc` suffix. The workflow automatically
+numbers candidates from existing tags, for example `0.5.3rc1` and `0.5.3rc2`.
+The target must be greater than the stable release baseline.
+
+The workflow validates a separate version-only candidate, pushes only its
+annotated tag, and publishes a GitHub prerelease without updating `main` or the
+latest stable release. Testers can enable **Pre-release** for the repository in
+HACS; the prerelease must be newer than their installed stable version to be
+offered. A subsequent stable release follows the normal version selection and
+publication path. Use **dry-run** to test either mode without publishing.
 
 ### Recovery
 
@@ -118,11 +138,14 @@ jobs** on that workflow run. This retries publication of the recorded tag/SHA
 without creating another version.
 
 Alternatively, dispatch Release with **recover-version** set to the existing
-version, leaving **version** empty. The helper verifies the tag belongs to `main`,
-points to a recognized version-only release commit, and matches the manifest;
-it then validates that tagged code and retries publication. An already published
-stable release returns its URL without duplication. A conflicting draft or
-prerelease fails instead of being silently promoted. Do not delete or move tags.
+version, leaving **version** empty. For a prerelease, use the full version, for
+example `0.5.3rc1`; the workflow determines the release type from that version.
+The helper verifies that the stable release commit, or the parent of the tag-only
+prerelease commit, belongs to `main`. It also checks for a recognized
+version-only release commit and matching manifest, then validates the tagged
+code and retries publication. An existing release of the expected type returns
+its URL without duplication; a conflicting draft or release type fails. Do not
+delete or move tags.
 
 Do not use a fresh default patch release to recover a publishing failure: that
 would create another version. Missing App credentials, failed checks, duplicate
