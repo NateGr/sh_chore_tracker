@@ -1,3 +1,24 @@
+<p align="center">
+  <img src="custom_components/sh_chore_tracker/icon.png" alt="SmartHass Chore Tracker" width="96">
+</p>
+
+<p align="center">
+  <a href="https://github.com/NateGr/sh_chore_tracker/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/NateGr/sh_chore_tracker/ci.yml?branch=main&label=CI&logo=github" alt="CI status"></a>
+  <a href="https://github.com/NateGr/sh_chore_tracker/releases/latest"><img src="https://img.shields.io/github/v/release/NateGr/sh_chore_tracker?logo=github" alt="Latest release"></a>
+  <a href="https://github.com/NateGr/sh_chore_tracker/releases"><img src="https://img.shields.io/github/downloads/NateGr/sh_chore_tracker/total?logo=github&label=downloads" alt="GitHub downloads"></a>
+  <a href="https://hacs.xyz/"><img src="https://img.shields.io/badge/HACS-Custom-orange.svg?logo=homeassistantcommunitystore&logoColor=white" alt="HACS Custom"></a>
+  <a href="https://www.home-assistant.io/"><img src="https://img.shields.io/badge/Home%20Assistant-2026.9.0%2B-41BDF5?logo=homeassistant&logoColor=white" alt="Home Assistant 2026.9.0+"></a>
+  <a href="https://github.com/NateGr/sh_chore_tracker/stargazers"><img src="https://img.shields.io/github/stars/NateGr/sh_chore_tracker?style=flat&logo=github" alt="GitHub stars"></a>
+  <a href="https://github.com/NateGr/sh_chore_tracker/issues"><img src="https://img.shields.io/github/issues/NateGr/sh_chore_tracker" alt="Open issues"></a>
+  <a href="https://github.com/NateGr/sh_chore_tracker/commits/main"><img src="https://img.shields.io/github/last-commit/NateGr/sh_chore_tracker" alt="Last commit"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/github/license/NateGr/sh_chore_tracker" alt="MIT license"></a>
+</p>
+
+<p align="center">
+  <a href="https://my.home-assistant.io/redirect/hacs_repository/?owner=NateGr&repository=sh_chore_tracker&category=integration"><img src="https://my.home-assistant.io/badges/hacs_repository.svg" alt="Open in HACS"></a>
+  <a href="https://my.home-assistant.io/redirect/config_flow_start/?domain=sh_chore_tracker"><img src="https://my.home-assistant.io/badges/config_flow_start.svg" alt="Add integration"></a>
+</p>
+
 # SmartHass Chore Tracker
 
 SmartHass Chore Tracker is a Home Assistant custom integration for scheduling,
@@ -22,7 +43,8 @@ Requires **Home Assistant 2026.9.0 or newer**.
 
 1. In HACS, open **Integrations** and select the menu in the upper-right corner.
 2. Select **Custom repositories** and add
-   `https://github.com/NateGr/sh_chore_tracker` with category **Integration**.
+   `https://github.com/NateGr/sh_chore_tracker` with category **Integration**,
+   or use the **Open in HACS** badge above.
 3. Find **SmartHass Chore Tracker**, install it, and restart Home Assistant.
 
 If the integration is listed in the HACS catalog, find it under **Integrations**
@@ -34,7 +56,7 @@ and install it directly.
    [GitHub Releases](https://github.com/NateGr/sh_chore_tracker/releases).
 2. Extract the archive and copy `custom_components/sh_chore_tracker` into your
    Home Assistant configuration directory at
-    `<config>/custom_components/sh_chore_tracker`. Create `custom_components` if it
+   `<config>/custom_components/sh_chore_tracker`. Create `custom_components` if it
    does not already exist.
 3. Confirm that `<config>/custom_components/sh_chore_tracker/manifest.json`
    exists, then restart Home Assistant.
@@ -48,7 +70,8 @@ For example, the resulting directory layout should look like this:
         ├── __init__.py
         ├── manifest.json
         ├── sensor.py
-        └── button.py
+        ├── button.py
+        └── ...
 ```
 
 ## Setup
@@ -73,7 +96,8 @@ required. Examples of schedules you can create in the flow:
 
 The first occurrence is the schedule's starting due date. When a date does not
 match the selected recurrence, it is normalized to the next valid date. A new
-chore cannot start with a past first-occurrence date.
+chore cannot start with a past first-occurrence date (editing an existing chore
+is not subject to this check).
 
 ## Entities and Due Status
 
@@ -147,8 +171,9 @@ mode: single
 ```
 
 Replace the example sensor and notification service with the ones from your
-instance. Completion, snooze, skip, restore, reassignment, schedule reset, and
-overdue transitions also emit `sh_chore_tracker_*` events; see the service
+instance. Completion (and undo), snooze, skip, restore, reassignment, schedule reset,
+and overdue transitions also emit `sh_chore_tracker_*` events (for example
+`sh_chore_tracker_chore_completed`); see the service
 reference for event names and payloads.
 
 ## Updates
