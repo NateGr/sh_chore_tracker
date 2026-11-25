@@ -316,6 +316,9 @@ class ChoreEntity(CoordinatorEntity[ChoreCoordinator], SensorEntity):
                 "integration_domain": DOMAIN,
                 "days_until_due": self._compute_days_until_due(),
                 "next_due_date": next_due.isoformat() if next_due else None,
+                "original_due_date": self._format_datetime_attr(
+                    state.get("snooze_original_due_date") or next_due
+                ),
                 "completion_count": state.get("completion_count", state.get("completed_count", 0)),
                 "last_completed_date": self._format_datetime_attr(
                     state.get("last_completed_date", state.get("last_completed"))

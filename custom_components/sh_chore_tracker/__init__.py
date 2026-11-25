@@ -715,6 +715,7 @@ class ChoreCoordinator(DataUpdateCoordinator):
                     "completion_count": 0,
                     "last_completed_date": None,
                     "next_due_date": self._calculate_initial_due_date(config),
+                    "snooze_original_due_date": None,
                     "snooze_until": None,
                     "snooze_reason": None,
                     "snooze_count": 0,
@@ -864,6 +865,8 @@ class ChoreCoordinator(DataUpdateCoordinator):
         stored_chores = stored.get("chores", {})
         datetime_keys = {
             "next_due_date",
+            "snooze_original_due_date",
+            "_skip_snooze_original_due_date",
             "snooze_until",
             "last_completed_date",
             "last_skip_date",
@@ -918,6 +921,8 @@ class ChoreCoordinator(DataUpdateCoordinator):
         for key in (
             "snooze_until",
             "snooze_reason",
+            "snooze_original_due_date",
+            "_skip_snooze_original_due_date",
             "skip_reason",
             "last_skip_date",
             "original_due_date",
@@ -1251,6 +1256,8 @@ async def _complete_chore_handler(
     state["completion_count"] = state.get("completion_count", 0) + 1
     state["snooze_until"] = None  # Clear any snooze
     state["snooze_count"] = 0  # Reset snooze counter on completion
+    state["snooze_original_due_date"] = None
+    state["_skip_snooze_original_due_date"] = None
     state["original_due_date"] = None
 
     # Calculate next due date using recurrence engine
@@ -1341,6 +1348,9 @@ async def _snooze_chore_handler(
 
     # Push next_due_date forward by the snooze period (primary due-date shift)
     current_due = _parse_state_datetime(state.get("next_due_date")) or dt_util.now()
+    state["snooze_original_due_date"] = (
+        _parse_state_datetime(state.get("snooze_original_due_date")) or current_due
+    )
     state["next_due_date"] = current_due + timedelta(days=days)
 
     # Set snooze tracking fields
@@ -1349,6 +1359,7 @@ async def _snooze_chore_handler(
     state["snooze_reason"] = reason
     state["snooze_count"] = state.get("snooze_count", 0) + 1
     state["original_due_date"] = None
+    state["_skip_snooze_original_due_date"] = None
 
     # Persist state before triggering refresh
     await coordinator.async_save_state()
@@ -1392,6 +1403,8 @@ async def _skip_chore_handler(
 
     # Store original due date for potential restore
     state["original_due_date"] = current_due
+    state["_skip_snooze_original_due_date"] = state.get("snooze_original_due_date")
+    state["snooze_original_due_date"] = None
 
     # Store skip information for potential restore
     state["last_skip_date"] = dt_util.now()
@@ -1455,6 +1468,7 @@ async def _restore_chore_handler(
 
     state["next_due_date"] = original_due
     state["status"] = _resolve_open_status(original_due)
+    state["snooze_original_due_date"] = state.get("_skip_snooze_original_due_date")
     state["skip_restored"] = True
 
     # Persist state before triggering refresh
@@ -1553,6 +1567,8 @@ async def _reset_next_due_date_handler(
     state["next_due_date"] = new_next_due
     state["snooze_until"] = None
     state["snooze_reason"] = None
+    state["snooze_original_due_date"] = None
+    state["_skip_snooze_original_due_date"] = None
     state["skip_reason"] = None
     state["last_skip_date"] = None
     state["original_due_date"] = None

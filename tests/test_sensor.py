@@ -179,6 +179,26 @@ def test_days_until_due_also_present_as_attribute() -> None:
     assert value == attrs["days_until_due"]
 
 
+def test_original_due_date_does_not_change_sensor_calculations() -> None:
+    entity = _make_entity(datetime(2026, 10, 9, tzinfo=timezone.utc), status="snoozed")
+    entity.coordinator.get_chore_data.return_value["state"]["snooze_original_due_date"] = datetime(
+        2026, 10, 3, tzinfo=timezone.utc
+    )
+
+    with patch(
+        "custom_components.sh_chore_tracker.sensor.dt_util.now",
+        return_value=datetime(2026, 10, 6, 12, tzinfo=timezone.utc),
+    ):
+        attributes = entity.extra_state_attributes
+        value = entity.native_value
+
+    assert attributes["original_due_date"] == "2026-10-03T00:00:00+00:00"
+    assert attributes["next_due_date"] == "2026-10-09T00:00:00+00:00"
+    assert attributes["days_until_due"] == value == 3
+    assert attributes["status"] == "snoozed"
+    assert "days_overdue" not in attributes
+
+
 def test_hub_aggregate_sensors_report_next_due_and_overdue_count() -> None:
     coordinator = MagicMock()
     coordinator.data = {
