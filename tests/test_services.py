@@ -655,6 +655,21 @@ class TestSnoozeChoreHandler:
         )
 
     @pytest.mark.asyncio
+    async def test_repeated_snooze_preserves_first_scheduled_due_date(self):
+        hass = MagicMock()
+        hass.bus.async_fire = MagicMock()
+        original_due = datetime(2024, 1, 10)
+        coordinator = _make_coordinator(hass, {"next_due_date": original_due})
+        chore_data = _make_chore_data(coordinator)
+
+        await _snooze_chore_handler(hass, coordinator, chore_data, "sensor.test", {"days": 3})
+        await _snooze_chore_handler(hass, coordinator, chore_data, "sensor.test", {"days": 2})
+
+        state = chore_data["state"]
+        _assert_same_instant(state["snooze_original_due_date"], original_due)
+        _assert_same_instant(state["next_due_date"], original_due + timedelta(days=5))
+
+    @pytest.mark.asyncio
     async def test_snooze_until_equals_next_due_date(self):
         hass = MagicMock()
         hass.bus.async_fire = MagicMock()
@@ -930,6 +945,50 @@ class TestRestoreChoreHandler:
 
 class TestSkipChoreHandler:
     """Tests for _skip_chore_handler (Story 2.4)."""
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("reload_state", [False, True])
+    async def test_skip_and_restore_preserve_snooze_baseline_as_metadata(self, reload_state):
+        now = datetime.fromisoformat("2026-10-29T12:00:00+00:00")
+        original_due = now - timedelta(days=2)
+        coordinator = ChoreCoordinator.__new__(ChoreCoordinator)
+        coordinator.hass = MagicMock()
+        coordinator.entry = MagicMock(entry_id="hub_1")
+        coordinator._chores = {
+            "chore_1": {
+                "config": {
+                    "recurrence_type": "interval",
+                    "pattern_interval": 7,
+                    "interval_unit": "days",
+                },
+                "state": {"next_due_date": original_due, "snooze_count": 0},
+            }
+        }
+        coordinator._store = MagicMock()
+        coordinator._store.async_save = AsyncMock()
+        coordinator.async_request_refresh = AsyncMock()
+        chore_data = coordinator._chores["chore_1"]
+
+        with patch("custom_components.sh_chore_tracker.dt_util.now", return_value=now):
+            await _snooze_chore_handler(
+                coordinator.hass, coordinator, chore_data, "sensor.test", {"days": 3}
+            )
+            snoozed_due = chore_data["state"]["next_due_date"]
+            await _skip_chore_handler(coordinator.hass, coordinator, chore_data, "sensor.test", {})
+            assert chore_data["state"]["snooze_original_due_date"] is None
+
+            if reload_state:
+                stored = coordinator._store.async_save.call_args.args[0]
+                coordinator._store.async_load = AsyncMock(return_value=stored)
+                chore_data["state"] = {}
+                await coordinator._async_load_hub_state()
+
+            await _restore_chore_handler(
+                coordinator.hass, coordinator, chore_data, "sensor.test", {}
+            )
+
+        assert chore_data["state"]["next_due_date"] == snoozed_due
+        assert chore_data["state"]["snooze_original_due_date"] == original_due
 
     @pytest.mark.asyncio
     async def test_skip_advances_from_current_due_date(self):

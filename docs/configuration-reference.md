@@ -179,6 +179,14 @@ The primary sensor state is a **signed integer** representing days until the cho
 
 The state has unit `d` (days) and state class `measurement`.
 
+The `original_due_date` attribute reports the scheduled date before the first
+snooze of the current occurrence, or `next_due_date` if it has not been
+snoozed. It is informational only: scheduling, status, sensor state, and
+`days_until_due` continue to use `next_due_date`. Completing, skipping, resetting
+or reanchoring advances or clears the snooze baseline; restoring a skipped
+occurrence also restores its baseline. Snoozes made before this feature cannot
+recover the original date.
+
 ### `status` Attribute
 
 The `status` attribute carries the chore's lifecycle string value.
