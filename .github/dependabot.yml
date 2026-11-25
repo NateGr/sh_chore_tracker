@@ -5,6 +5,8 @@ updates:
     schedule:
       interval: weekly
     open-pull-requests-limit: 2
+    ignore:
+      - dependency-name: homeassistant
     groups:
       test-tools:
         patterns: ["*"]

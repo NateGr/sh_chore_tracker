@@ -3,4 +3,4 @@ pytest-cov==7.1.0
 pytest-asyncio==1.5.0
 mypy==2.4.1
 ruff==0.17.6
-homeassistant==2026.11.2
+homeassistant==2026.9.0

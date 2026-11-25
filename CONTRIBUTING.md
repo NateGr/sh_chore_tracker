@@ -13,6 +13,9 @@ minimum supported version in `hacs.json`. A running Home Assistant server is
 not required; tests use Home Assistant's installed Python package and mocked
 instances where needed.
 
+Update the Home Assistant test pin and `hacs.json` minimum together after
+verifying compatibility; Dependabot does not update this pin automatically.
+
 Windows PowerShell:
 
 ```powershell
