@@ -7,9 +7,19 @@ updates:
     open-pull-requests-limit: 2
     ignore:
       - dependency-name: homeassistant
+      - dependency-name: pytest-homeassistant-custom-component
+      - dependency-name: pytest
+      - dependency-name: pytest-asyncio
+      - dependency-name: pytest-cov
+      - dependency-name: pytest-socket
     groups:
       test-tools:
         patterns: ["*"]
+  - package-ecosystem: pip
+    directory: /requirements/latest
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 2
   - package-ecosystem: github-actions
     directory: /
     schedule:
