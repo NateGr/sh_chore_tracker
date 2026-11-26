@@ -7,14 +7,16 @@ required from contributors.
 
 ## Local Setup
 
-Use Python 3.14.x (CI pins 3.14.2) with Home Assistant 2026.9.0. This does not
-claim compatibility with future Python minor versions. The test requirements pin Home Assistant to the
-minimum supported version in `hacs.json`. A running Home Assistant server is
-not required; tests use Home Assistant's installed Python package and mocked
-instances where needed.
+Use Python 3.14.x (CI pins 3.14.2). This does not claim compatibility with
+future Python minor versions. The minimum test environment uses Home Assistant
+2026.9.0 and fixture plugin 0.13.363; a separate latest fixture environment
+uses plugin 0.13.375 and Home Assistant 2026.10.4. A running Home Assistant
+server is not required; tests combine fixture-backed Home Assistant instances
+with focused mocked unit tests.
 
-Update the Home Assistant test pin and `hacs.json` minimum together after
-verifying compatibility; Dependabot does not update this pin automatically.
+Update the minimum Home Assistant pin, fixture plugin, and `hacs.json` together
+only after verifying compatibility. Dependabot updates the latest fixture
+environment separately; update the minimum stack intentionally.
 
 Windows PowerShell:
 
@@ -46,9 +48,24 @@ python scripts/release.py check
 python -m ruff check .
 python -m ruff format --check --exclude '*.md' .
 python -m mypy custom_components/sh_chore_tracker/ --ignore-missing-imports
+python scripts/check_ha_compatibility.py minimum
 python -m pytest tests/ --cov=scripts --cov=custom_components/sh_chore_tracker --cov-report=term-missing
 python -m coverage report --include='*/custom_components/sh_chore_tracker/*' --fail-under=80
 ```
+
+For the latest fixture stack, create a separate Python 3.14 virtual environment,
+install `requirements/latest/requirements.txt`, and run:
+
+```bash
+python scripts/check_ha_compatibility.py latest
+python -m pytest tests/ --cov=scripts --cov=custom_components/sh_chore_tracker --cov-report=term-missing
+python -m coverage report --include='*/custom_components/sh_chore_tracker/*' --fail-under=80
+```
+
+`python scripts/check_ha_compatibility.py updates` queries PyPI and reports
+whether the latest fixture plugin and latest stable Home Assistant match. The
+weekly CI monitor runs this check and fails when the fixture lags stable or
+the latest plugin has not been pinned.
 
 Use `python -m ruff format --exclude '*.md' .` to apply formatting. Review any automatic lint fixes
 before committing. CI enforces at least 80% line coverage for the integration

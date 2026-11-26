@@ -8,10 +8,10 @@ from urllib.parse import unquote, urlsplit
 
 import pytest
 import pytest_asyncio
+import voluptuous as vol
 import yaml
 from homeassistant.core import Context, HomeAssistant, SupportsResponse
 from homeassistant.exceptions import ServiceValidationError, Unauthorized
-from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers.selector import EntitySelector
 from homeassistant.util import dt as dt_util
 from homeassistant.util.yaml import load_yaml
@@ -169,14 +169,14 @@ async def test_registers_all_documented_services(registered_hass):
     ],
 )
 async def test_registered_chore_actions_require_entity(registered_hass, action):
-    with pytest.raises(cv.vol.Invalid):
+    with pytest.raises(vol.Invalid):
         await registered_hass.services.async_call(DOMAIN, action, {}, blocking=True)
 
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("days", [0, 366, "invalid"])
 async def test_registered_snooze_rejects_invalid_duration(registered_hass, days):
-    with pytest.raises(cv.vol.Invalid):
+    with pytest.raises(vol.Invalid):
         await registered_hass.services.async_call(
             DOMAIN, "snooze_chore", {"entity_id": "sensor.test", "days": days}, blocking=True
         )
@@ -184,7 +184,7 @@ async def test_registered_snooze_rejects_invalid_duration(registered_hass, days)
 
 @pytest.mark.asyncio
 async def test_registered_reset_rejects_replacement_date(registered_hass):
-    with pytest.raises(cv.vol.Invalid):
+    with pytest.raises(vol.Invalid):
         await registered_hass.services.async_call(
             DOMAIN,
             "reset_next_due_date",
