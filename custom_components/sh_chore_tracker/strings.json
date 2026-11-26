@@ -209,6 +209,9 @@
     }
   },
   "entity": {
+    "calendar": {
+      "schedule": { "name": "Calendar" }
+    },
     "button": {
       "complete": { "name": "Complete" },
       "snooze": { "name": "Snooze" },

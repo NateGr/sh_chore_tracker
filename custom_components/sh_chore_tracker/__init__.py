@@ -1,6 +1,7 @@
 """SmartHass Chore Tracker integration for Home Assistant."""
 
 import logging
+from collections.abc import Iterator
 from datetime import date, datetime, timedelta
 from types import MappingProxyType
 from typing import Any, Dict
@@ -174,7 +175,7 @@ class RecurrenceEngine:
         self.date_calc = DateCalculator()
 
     def calculate_next_due_date(
-        self, config: Dict[str, Any], completion_date: datetime
+        self, config: Dict[str, Any], completion_date: date | datetime
     ) -> datetime:
         """Calculate the next due date based on recurrence configuration.
 
@@ -200,6 +201,44 @@ class RecurrenceEngine:
 
         # Convert back to HA-aware datetime at start of day for backward compatibility
         return _as_ha_datetime(datetime.combine(next_due_date, datetime.min.time()))
+
+    def iter_due_dates(
+        self, config: dict[str, Any], first_due: date, end_date: date
+    ) -> Iterator[date]:
+        """Expand due dates assuming on-time completion, up to an exclusive end."""
+        # Home Assistant number selectors store whole numbers as floats.
+        config = dict(config)
+        for key in (
+            CONF_PATTERN_INTERVAL,
+            CONF_MONTHLY_DAY,
+            CONF_YEARLY_MONTH,
+            CONF_YEARLY_DAY,
+        ):
+            value = config.get(key)
+            if isinstance(value, float) and value.is_integer():
+                config[key] = int(value)
+        interval = config.get(CONF_PATTERN_INTERVAL, 1)
+        # Creation-service limits are narrower than existing UI schedules.
+        validation_config = {**config, CONF_PATTERN_INTERVAL: 1}
+        if (
+            not isinstance(interval, (int, float))
+            or not interval >= 1
+            or not self.validate_recurrence_config(validation_config)
+        ):
+            raise HomeAssistantError("Cannot project chores with invalid recurrence configuration")
+
+        due_date = first_due
+        while due_date < end_date:
+            yield due_date
+            try:
+                next_due = self.calculate_next_due_date(config, due_date).date()
+            except (ValueError, OverflowError) as err:
+                raise HomeAssistantError(
+                    "Chore projection exceeds the supported date range"
+                ) from err
+            if next_due <= due_date:
+                raise HomeAssistantError("Chore recurrence must advance the due date")
+            due_date = next_due
 
     def _calculate_interval(self, config: Dict[str, Any], completion_date: date) -> date:
         """Calculate next due date for interval-based recurrence (completion-based).
@@ -511,7 +550,7 @@ _LOGGER = logging.getLogger(__name__)
 
 CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
 
-PLATFORMS: list[Platform] = [Platform.SENSOR, Platform.BUTTON]
+PLATFORMS: list[Platform] = [Platform.SENSOR, Platform.BUTTON, Platform.CALENDAR]
 
 # Update interval for coordinator
 UPDATE_INTERVAL = timedelta(minutes=15)

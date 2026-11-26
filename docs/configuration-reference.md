@@ -84,14 +84,56 @@ Behavior:
 
 ## Household Entities
 
-The hub exposes two aggregate entities in the automatically created **Overall summary** group:
+The hub exposes these entities in the automatically created **Overall summary** group:
 
 - `sensor.chores_next_due`: signed days until the nearest scheduled chore; attributes identify the chore and due date.
 - `sensor.chores_overdue_count`: current overdue chore count. A value greater than zero indicates overdue chores.
+- `calendar.chores`: read-only all-day chore calendar, generated from the current schedules.
 
 On the next integration load, generic summary IDs such as `sensor.chore_tracker` and `sensor.chore_tracker_2` are migrated to these defaults. Custom entity IDs are preserved; occupied defaults receive a numeric suffix. Update dashboards and automations that reference the old generic IDs. The redundant "Any chore overdue" binary sensor is removed; use the overdue count instead.
 
 Existing hubs receive the summary group automatically on their next load, without recreating chores. The summary device moves into this group instead of appearing under "Devices that don't belong to a sub-entry". The integration includes local Smart Hass branding; restart Home Assistant and refresh the browser after updating to load the icon.
+
+## Calendar Behavior
+
+Select the household calendar in Home Assistant's Calendar view or a calendar
+dashboard card. Default entity IDs may receive numeric suffixes if occupied;
+custom IDs are preserved across reloads.
+
+The integration generates events on demand for the requested date range. Each
+chore starts from its actual `next_due_date`; subsequent events are labelled
+`(projected)` and assume completion on every scheduled date. Event details include
+the chore description, assigned person entity ID when assigned, and the projection
+assumption. All-day events occupy their local due date, with an exclusive end on
+the following date.
+
+There is no fixed count or short projection horizon. Intervals advance from each
+hypothetical completion; weekly, monthly, and yearly rules reuse the existing
+recurrence engine, including end-of-month and leap-day behavior.
+
+An overdue occurrence stays on its original due date, even outside the current
+view; projected dates continue from that anchor without changing its overdue
+state. Complete and skip advance the actual `next_due_date`, so the next real
+occurrence remains visible despite a temporary `complete` or `skipped` status.
+Snooze shifts the anchor; undo and restore reinstate the previous anchor.
+Reassignment and schedule edits update event details/dates, and deleting a chore
+removes its events.
+
+The calendar entity's `on` state means at least one actual or projected event is
+active today; it is not a due/overdue status indicator. Use calendar event queries
+for the full list of simultaneous chores, rather than the entity's single
+current/next-event attributes.
+
+Events are read-only: use chore buttons/services/subentry controls to make changes.
+Projections are not additional tasks, committed due dates, historical completions,
+or evidence that anything was completed. Calendar triggers may fire for projected
+events; use the existing chore sensors/services for authoritative notifications.
+
+The calendar is automatically added to new and existing configured hubs. Reload
+and restart preserve its identity and regenerate events from persisted chore state.
+Removing the hub removes the calendar; no independent Local Calendar integration
+or calendar storage is created. Remove the configured hub before uninstalling the
+integration files.
 
 ## Chore Device Controls
 
