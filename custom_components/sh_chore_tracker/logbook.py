@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from typing import Any
 
 from homeassistant.components.logbook import LOGBOOK_ENTRY_ENTITY_ID, LOGBOOK_ENTRY_MESSAGE
@@ -18,25 +18,25 @@ from .const import (
 )
 
 
-def _describe_completed(data: dict[str, Any]) -> str:
+def _describe_completed(data: Mapping[str, Any]) -> str:
     return f"completed (total {data.get('completion_count', '?')}), next due {_date(data.get('next_due_date'))}"
 
 
-def _describe_undone(data: dict[str, Any]) -> str:
+def _describe_undone(data: Mapping[str, Any]) -> str:
     return f"completion undone (total {data.get('completion_count', '?')})"
 
 
-def _describe_snoozed(data: dict[str, Any]) -> str:
+def _describe_snoozed(data: Mapping[str, Any]) -> str:
     message = f"snoozed {data.get('snoozed_for_days', '?')} day(s) until {_date(data.get('new_due_date'))}"
     return f"{message}: {data['reason']}" if data.get("reason") else message
 
 
-def _describe_skipped(data: dict[str, Any]) -> str:
+def _describe_skipped(data: Mapping[str, Any]) -> str:
     message = f"skipped, next due {_date(data.get('next_due_date'))}"
     return f"{message}: {data['reason']}" if data.get("reason") else message
 
 
-def _describe_config_changed(data: dict[str, Any]) -> str:
+def _describe_config_changed(data: Mapping[str, Any]) -> str:
     changes = ", ".join(
         f"{field} {change.get('old')} -> {change.get('new')}"
         for field, change in (data.get("changed") or {}).items()
@@ -49,7 +49,7 @@ def _date(value: str | None) -> str:
     return value[:10] if isinstance(value, str) else "unknown"
 
 
-_DESCRIBERS: dict[str, Callable[[dict[str, Any]], str]] = {
+_DESCRIBERS: dict[str, Callable[[Mapping[str, Any]], str]] = {
     EVENT_CHORE_COMPLETED: _describe_completed,
     EVENT_CHORE_COMPLETE_UNDONE: _describe_undone,
     EVENT_CHORE_SNOOZED: _describe_snoozed,
@@ -65,7 +65,7 @@ def async_describe_events(
 ) -> None:
     """Register logbook descriptions for chore events."""
 
-    def make_describer(describe: Callable[[dict[str, Any]], str]):
+    def make_describer(describe: Callable[[Mapping[str, Any]], str]):
         @callback
         def async_describe(event: Event) -> dict[str, Any]:
             return {

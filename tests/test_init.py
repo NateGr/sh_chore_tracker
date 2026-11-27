@@ -497,6 +497,26 @@ def test_config_changed_event_from_snapshot(stored_configs, expected_changed, fi
     assert payload["changed"] == {"pattern_interval": {"old": 3, "new": 7}}
 
 
+@pytest.mark.asyncio
+async def test_runtime_save_keeps_config_baseline_until_reload_compares():
+    hass = Mock()
+    entry = Mock(entry_id="hub", version=3, data={"is_hub_entry": True})
+    subentry = Mock(
+        subentry_id="s1", unique_id="c1", data={"chore_name": "Dishes", "assigned_person": "a"}
+    )
+    entry.get_subentries_of_type.return_value = [subentry]
+    store = Mock(async_load=AsyncMock(return_value={}), async_save=AsyncMock())
+    with patch("custom_components.sh_chore_tracker.Store", return_value=store):
+        coordinator = ChoreCoordinator(hass, entry)
+
+    # Reassignment updates the live config; a later state save must not advance the baseline.
+    coordinator._chores["c1"]["config"]["assigned_person"] = "b"
+    await coordinator.async_save_state()
+
+    saved = store.async_save.call_args.args[0]
+    assert saved["configs"]["c1"]["assigned_person"] == "a"
+
+
 def _make_coordinator_for_update(state: dict) -> ChoreCoordinator:
     """Build a minimal coordinator instance for lifecycle update tests."""
     coordinator = ChoreCoordinator.__new__(ChoreCoordinator)

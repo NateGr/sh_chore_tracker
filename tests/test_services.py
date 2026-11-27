@@ -913,6 +913,7 @@ class TestRestoreChoreHandler:
         restored_at = datetime.fromisoformat("2026-10-29T00:05:00+00:00")
         original_due = skipped_at.replace(hour=0, minute=0)
         coordinator = ChoreCoordinator.__new__(ChoreCoordinator)
+        coordinator._config_baseline = {}
         coordinator.hass = MagicMock()
         coordinator.entry = MagicMock(entry_id="hub_1")
         coordinator._chores = {
@@ -1081,6 +1082,7 @@ class TestSkipChoreHandler:
         now = datetime.fromisoformat("2026-10-29T12:00:00+00:00")
         original_due = now - timedelta(days=2)
         coordinator = ChoreCoordinator.__new__(ChoreCoordinator)
+        coordinator._config_baseline = {}
         coordinator.hass = MagicMock()
         coordinator.entry = MagicMock(entry_id="hub_1")
         coordinator._chores = {

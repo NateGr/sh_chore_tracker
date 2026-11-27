@@ -781,6 +781,11 @@ class ChoreCoordinator(DataUpdateCoordinator):
             hass, 1, f"sh_chore_tracker_hub_{entry.entry_id}"
         )
         self._initialize_chore_data()
+        # Config snapshot used to detect edits across reloads. It only advances after
+        # a load has compared it, so runtime state saves can't hide a pending change.
+        self._config_baseline: dict[str, dict[str, Any]] = {
+            chore_id: dict(data["config"]) for chore_id, data in self._chores.items()
+        }
 
     def _initialize_chore_data(self):
         """Initialize one config/state record for each chore subentry."""
@@ -1071,9 +1076,7 @@ class ChoreCoordinator(DataUpdateCoordinator):
         await self._store.async_save(
             {
                 "chores": serialized_chores,
-                "configs": {
-                    chore_id: dict(data["config"]) for chore_id, data in self._chores.items()
-                },
+                "configs": self._config_baseline,
             }
         )
 
