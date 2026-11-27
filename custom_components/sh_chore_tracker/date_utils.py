@@ -15,6 +15,8 @@ from .const import (
     CONF_MONTHLY_WEEKDAY,
     CONF_PATTERN_INTERVAL,
     CONF_RECURRENCE_TYPE,
+    CONF_YEARLY_DAY,
+    CONF_YEARLY_MONTH,
     INTERVAL_UNIT_MONTHS,
     INTERVAL_UNIT_YEARS,
     MONTHLY_MODE_DAY_OF_MONTH,
@@ -45,6 +47,20 @@ def valid_calendar_interval(config: Mapping[str, Any]) -> bool:
         and unit in {INTERVAL_UNIT_MONTHS, INTERVAL_UNIT_YEARS}
     )
     return not needs_integer or int(interval) == interval
+
+
+def normalize_recurrence_config(config: Mapping[str, Any]) -> dict[str, Any]:
+    """Validate intervals and normalize whole-number selector values on a copy."""
+    if not valid_calendar_interval(config):
+        raise ValueError(
+            "Invalid recurrence interval; month and year intervals must be whole numbers"
+        )
+    normalized = dict(config)
+    for key in (CONF_PATTERN_INTERVAL, CONF_MONTHLY_DAY, CONF_YEARLY_MONTH, CONF_YEARLY_DAY):
+        value = normalized.get(key)
+        if isinstance(value, float) and value.is_integer():
+            normalized[key] = int(value)
+    return normalized
 
 
 class DateCalculator:

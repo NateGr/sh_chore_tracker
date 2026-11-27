@@ -1,6 +1,7 @@
 """Tests for chore tracker service handlers (Stories 2.2, 2.3, 2.6)."""
 
 import re
+from copy import deepcopy
 from datetime import date, datetime, timedelta
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -117,6 +118,134 @@ def _assert_same_instant(actual: datetime, expected: datetime) -> None:
     elif actual.tzinfo is None and expected.tzinfo is not None:
         actual = actual.replace(tzinfo=expected.tzinfo)
     assert actual == expected
+
+
+@pytest.mark.parametrize(
+    ("config", "expected"),
+    [
+        (
+            {
+                "recurrence_type": "yearly",
+                "pattern_interval": 3.0,
+                "yearly_month": 1.0,
+                "yearly_day": 10.0,
+            },
+            date(2027, 1, 10),
+        ),
+        (
+            {"recurrence_type": "monthly", "pattern_interval": 1.0, "monthly_day": 15.0},
+            date(2024, 2, 15),
+        ),
+        (
+            {
+                "recurrence_type": "monthly",
+                "pattern_interval": 1.0,
+                "monthly_mode": "ordinal_weekday",
+                "monthly_ordinal": "first",
+                "monthly_weekday": "monday",
+            },
+            date(2024, 2, 5),
+        ),
+        (
+            {"recurrence_type": "interval", "pattern_interval": 2.0, "interval_unit": "months"},
+            date(2024, 3, 10),
+        ),
+        (
+            {"recurrence_type": "interval", "pattern_interval": 2.0, "interval_unit": "years"},
+            date(2026, 1, 10),
+        ),
+        (
+            {"recurrence_type": "interval", "pattern_interval": 2.5, "interval_unit": "days"},
+            date(2024, 1, 12),
+        ),
+        (
+            {"recurrence_type": "interval", "pattern_interval": 1.5, "interval_unit": "weeks"},
+            date(2024, 1, 20),
+        ),
+    ],
+)
+@pytest.mark.parametrize("action", ["complete", "skip", "reset"])
+async def test_actions_calculate_due_dates_from_ui_numbers(action, config, expected):
+    hass = MagicMock()
+    coordinator = _make_coordinator(
+        hass, {"next_due_date": datetime(2024, 1, 10), "last_completed_date": datetime(2024, 1, 10)}
+    )
+    chore_data = _make_chore_data(coordinator)
+    chore_data["config"] = deepcopy(config)
+    original_config = deepcopy(config)
+    if action == "complete":
+        await _complete_chore_handler(
+            hass,
+            coordinator,
+            chore_data,
+            "sensor.test",
+            {"completion_date": datetime(2024, 1, 10)},
+        )
+    elif action == "skip":
+        await _skip_chore_handler(hass, coordinator, chore_data, "sensor.test", {})
+    else:
+        await _reset_next_due_date_handler(hass, coordinator, chore_data, "sensor.test", {})
+    assert chore_data["state"]["next_due_date"].date() == expected
+    assert chore_data["config"] == original_config
+    coordinator.async_save_state.assert_awaited_once()
+    coordinator.async_request_refresh.assert_awaited_once()
+    hass.bus.async_fire.assert_called_once()
+
+
+@pytest.mark.parametrize("action", ["complete", "skip", "reset"])
+@pytest.mark.parametrize(
+    "config",
+    [
+        {"recurrence_type": "yearly", "pattern_interval": 2.5, "yearly_month": 1, "yearly_day": 10},
+        {"recurrence_type": "interval", "pattern_interval": 1.5, "interval_unit": "months"},
+    ],
+)
+async def test_invalid_action_schedule_does_not_change_state_or_emit_event(action, config):
+    hass = MagicMock()
+    coordinator = _make_coordinator(
+        hass,
+        {
+            "next_due_date": datetime(2024, 1, 10),
+            "last_completed_date": datetime(2024, 1, 10),
+            "snooze_original_due_date": datetime(2024, 1, 8),
+            "original_due_date": datetime(2024, 1, 9),
+            "_undo_previous_state": {"status": "pending"},
+        },
+    )
+    chore_data = _make_chore_data(coordinator)
+    chore_data["config"] = deepcopy(config)
+    before = deepcopy(chore_data)
+    handler = {
+        "complete": _complete_chore_handler,
+        "skip": _skip_chore_handler,
+        "reset": _reset_next_due_date_handler,
+    }[action]
+    with pytest.raises(ServiceValidationError, match="sensor.test.*edit its chore schedule"):
+        await handler(
+            hass,
+            coordinator,
+            chore_data,
+            "sensor.test",
+            {"completion_date": datetime(2024, 1, 10)},
+        )
+    assert chore_data == before
+    coordinator.async_save_state.assert_not_awaited()
+    coordinator.async_request_refresh.assert_not_awaited()
+    hass.bus.async_fire.assert_not_called()
+
+
+async def test_invalid_reset_without_completion_does_not_change_state():
+    hass = MagicMock()
+    coordinator = _make_coordinator(hass)
+    chore_data = _make_chore_data(coordinator)
+    chore_data["config"].update({"pattern_interval": 2.5, "interval_unit": "years"})
+    before = deepcopy(chore_data)
+    with pytest.raises(ServiceValidationError, match="sensor.test.*edit its chore schedule"):
+        await _reset_next_due_date_handler(hass, coordinator, chore_data, "sensor.test", {})
+    assert chore_data == before
+    coordinator.async_save_state.assert_not_awaited()
+    coordinator.async_request_refresh.assert_not_awaited()
+    hass.bus.async_fire.assert_not_called()
 
 
 @pytest_asyncio.fixture

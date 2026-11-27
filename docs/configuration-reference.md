@@ -116,7 +116,8 @@ fractional. If an existing schedule has an invalid interval, the integration
 keeps its actual due date on the calendar, omits that chore's projections, and
 logs a warning identifying the chore. Edit its schedule to correct the interval;
 the integration does not silently alter saved schedules. Other chores remain
-visible.
+visible. Complete, Skip, and Reset report an error without changing the chore
+until its invalid schedule is corrected.
 
 An overdue occurrence stays on its original due date, even outside the current
 view; projected dates continue from that anchor without changing its overdue

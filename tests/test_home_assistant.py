@@ -2,6 +2,7 @@
 
 import asyncio
 import threading
+from copy import deepcopy
 from datetime import timedelta
 from unittest.mock import Mock, patch
 
@@ -9,6 +10,7 @@ import pytest
 from homeassistant import config_entries
 from homeassistant.config_entries import ConfigEntryState
 from homeassistant.data_entry_flow import FlowResultType
+from homeassistant.exceptions import ServiceValidationError
 from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.storage import Store
 from homeassistant.util import dt as dt_util
@@ -356,21 +358,94 @@ async def test_reconfigure_fractional_interval_to_yearly_requires_correction(has
     ):
         result = await manager.async_configure(result["flow_id"], data)
     assert result["step_id"] == "fix_calendar_interval"
-    result = await manager.async_configure(result["flow_id"], {"pattern_interval": 2})
+    result = await manager.async_configure(result["flow_id"], {"pattern_interval": 3.0})
     assert result["step_id"] == "first_occurrence"
     result = await manager.async_configure(
         result["flow_id"], {"first_occurrence_date": "2026-11-02"}
     )
     assert result["reason"] == "reconfigure_successful"
     await hass.async_block_till_done()
-    assert entry.subentries[chore.subentry_id].data["pattern_interval"] == 2
+    assert entry.subentries[chore.subentry_id].data["pattern_interval"] == 3.0
     events = await get_calendar_events(
-        hass, dt_util.start_of_local_day(), dt_util.now() + timedelta(days=800)
+        hass, dt_util.start_of_local_day(), dt_util.now() + timedelta(days=1200)
     )
     assert [(event["start"], event["summary"]) for event in events] == [
         ("2026-11-02", "Dishes"),
-        ("2028-11-02", "Dishes (projected)"),
+        ("2029-11-02", "Dishes (projected)"),
     ]
+    for action, expected_due in (
+        ("complete_chore", "2029-11-02"),
+        ("skip_chore", "2032-11-02"),
+        ("reset_next_due_date", "2029-11-02"),
+    ):
+        await hass.services.async_call(
+            DOMAIN, action, {"entity_id": "sensor.chore_dishes"}, blocking=True
+        )
+        await hass.async_block_till_done()
+        freezer.tick(timedelta(seconds=11))
+        async_fire_time_changed(hass)
+        await hass.async_block_till_done()
+        state = hass.states.get("sensor.chore_dishes")
+        assert state.attributes["next_due_date"].startswith(expected_due)
+        assert state.attributes["completion_count"] == 1
+        coordinator = hass.data[DOMAIN][entry.entry_id]
+        assert (
+            coordinator.get_chore_data(chore.unique_id)["state"]["next_due_date"].date().isoformat()
+            == expected_due
+        )
+    stored = await Store(hass, 1, f"sh_chore_tracker_hub_{entry.entry_id}").async_load()
+    assert stored["chores"][chore.unique_id]["next_due_date"].startswith("2029-11-02")
+
+
+@pytest.mark.parametrize(
+    ("action", "event_type"),
+    [
+        ("complete_chore", "sh_chore_tracker_chore_completed"),
+        ("skip_chore", "sh_chore_tracker_chore_skipped"),
+        ("reset_next_due_date", "sh_chore_tracker_chore_schedule_reset"),
+    ],
+)
+async def test_invalid_schedule_action_leaves_runtime_and_storage_unchanged(
+    hass, freezer, action, event_type
+):
+    freezer.move_to("2026-11-01T12:00:00+00:00")
+    entry = await create_hub(hass)
+    chore = entry.get_subentries_of_type(SUBENTRY_TYPE_CHORE)[0]
+    hass.config_entries.async_update_subentry(
+        entry,
+        chore,
+        data={
+            **chore.data,
+            "recurrence_type": "yearly",
+            "pattern_interval": 2.5,
+            "yearly_month": 11,
+            "yearly_day": 2,
+        },
+    )
+    await hass.async_block_till_done()
+    coordinator = hass.data[DOMAIN][entry.entry_id]
+    chore_data = coordinator.get_chore_data(chore.unique_id)
+    chore_data["state"]["last_completed_date"] = dt_util.now()
+    await coordinator.async_save_state()
+    state_before = deepcopy(chore_data["state"])
+    store = Store(hass, 1, f"sh_chore_tracker_hub_{entry.entry_id}")
+    stored_before = await store.async_load()
+    listener = Mock()
+    unsub = hass.bus.async_listen(event_type, listener)
+
+    with pytest.raises(ServiceValidationError, match="edit its chore schedule"):
+        await hass.services.async_call(
+            DOMAIN, action, {"entity_id": "sensor.chore_dishes"}, blocking=True
+        )
+    await hass.async_block_till_done()
+    unsub()
+    assert chore_data["state"] == state_before
+    assert await store.async_load() == stored_before
+    listener.assert_not_called()
+    events = await get_calendar_events(
+        hass, dt_util.start_of_local_day(), dt_util.now() + timedelta(days=800)
+    )
+    assert [(event["start"], event["summary"]) for event in events] == [("2026-11-02", "Dishes")]
 
 
 async def test_calendar_refresh_failure_is_logged_and_recovers(hass, freezer, caplog):
