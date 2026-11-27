@@ -78,7 +78,7 @@ async def test_setup_entry():
                 get_devices.return_value.async_get_or_create.return_value.id,
                 new_config_subentry_id="summary_subentry",
             )
-            assert PLATFORMS == ["sensor", "button"]
+            assert PLATFORMS == ["sensor", "button", "calendar"]
             assert result is True
             assert DOMAIN in hass.data
             assert entry.entry_id in hass.data[DOMAIN]

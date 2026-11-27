@@ -52,7 +52,7 @@ from .const import (
     SUBENTRY_TYPE_CHORE,
     WEEKDAYS,
 )
-from .date_utils import coerce_date, normalize_first_occurrence_date
+from .date_utils import coerce_date, normalize_first_occurrence_date, valid_calendar_interval
 
 _MONTH_OPTIONS = [str(month) for month in range(1, 13)]
 _FlowResultT = TypeVar("_FlowResultT", ConfigFlowResult, SubentryFlowResult)
@@ -182,9 +182,13 @@ class ChoreFlowMixin(Generic[_FlowResultT]):
         self, user_input: dict[str, Any] | None = None
     ) -> _FlowResultT:
         """Step 3a: interval recurrence fields (only shown for interval type)."""
+        errors: dict[str, str] = {}
         if user_input is not None:
-            self._data.update(user_input)
-            return await self.async_step_first_occurrence()
+            config = {**self._data, **user_input, CONF_RECURRENCE_TYPE: RECURRENCE_TYPE_INTERVAL}
+            if valid_calendar_interval(config):
+                self._data.update(user_input)
+                return await self.async_step_first_occurrence()
+            errors["base"] = "invalid_calendar_interval"
 
         schema = vol.Schema(
             {
@@ -212,7 +216,33 @@ class ChoreFlowMixin(Generic[_FlowResultT]):
                 ),
             }
         )
-        return self.async_show_form(step_id="interval_config", data_schema=schema)
+        return self.async_show_form(step_id="interval_config", data_schema=schema, errors=errors)
+
+    async def _after_calendar_schedule(self) -> _FlowResultT:
+        if not valid_calendar_interval(self._data):
+            return await self.async_step_fix_calendar_interval()
+        return await self.async_step_first_occurrence()
+
+    async def async_step_fix_calendar_interval(
+        self, user_input: dict[str, Any] | None = None
+    ) -> _FlowResultT:
+        """Correct an inherited fractional multiplier before saving."""
+        errors: dict[str, str] = {}
+        if user_input is not None:
+            if valid_calendar_interval({**self._data, **user_input}):
+                self._data.update(user_input)
+                return await self.async_step_first_occurrence()
+            errors["base"] = "invalid_calendar_interval"
+        schema = vol.Schema(
+            {
+                vol.Required(CONF_PATTERN_INTERVAL): selector.NumberSelector(
+                    selector.NumberSelectorConfig(min=1, max=999, step=1)
+                )
+            }
+        )
+        return self.async_show_form(
+            step_id="fix_calendar_interval", data_schema=schema, errors=errors
+        )
 
     async def async_step_weekly_config(
         self, user_input: dict[str, Any] | None = None
@@ -274,7 +304,7 @@ class ChoreFlowMixin(Generic[_FlowResultT]):
         """Step 3c-i: specific day-of-month sub-branch."""
         if user_input is not None:
             self._data.update(user_input)
-            return await self.async_step_first_occurrence()
+            return await self._after_calendar_schedule()
 
         schema = vol.Schema(
             {
@@ -300,7 +330,7 @@ class ChoreFlowMixin(Generic[_FlowResultT]):
                 errors["base"] = "invalid_monthly_ordinal"
             else:
                 self._data.update(user_input)
-                return await self.async_step_first_occurrence()
+                return await self._after_calendar_schedule()
 
         schema = vol.Schema(
             {
@@ -334,7 +364,7 @@ class ChoreFlowMixin(Generic[_FlowResultT]):
         if user_input is not None:
             user_input[CONF_YEARLY_MONTH] = int(user_input[CONF_YEARLY_MONTH])
             self._data.update(user_input)
-            return await self.async_step_first_occurrence()
+            return await self._after_calendar_schedule()
 
         schema = vol.Schema(
             {

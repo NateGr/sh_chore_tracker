@@ -1,6 +1,7 @@
 """SmartHass Chore Tracker integration for Home Assistant."""
 
 import logging
+from collections.abc import Iterator
 from datetime import date, datetime, timedelta
 from types import MappingProxyType
 from typing import Any, Dict
@@ -91,6 +92,7 @@ from .date_utils import (
     DateCalculator,
     coerce_date,
     normalize_first_occurrence_date,
+    normalize_recurrence_config,
     nth_weekday_of_month,
 )
 
@@ -140,6 +142,10 @@ def _calculate_first_occurrence_datetime(
     return _as_ha_datetime(datetime.combine(normalized_date, datetime.min.time()))
 
 
+class InvalidProjectionConfig(HomeAssistantError):
+    """A chore schedule cannot be projected without correction."""
+
+
 class RecurrenceEngine:
     """Engine for calculating chore recurrence patterns using all-day event model.
 
@@ -174,7 +180,7 @@ class RecurrenceEngine:
         self.date_calc = DateCalculator()
 
     def calculate_next_due_date(
-        self, config: Dict[str, Any], completion_date: datetime
+        self, config: Dict[str, Any], completion_date: date | datetime
     ) -> datetime:
         """Calculate the next due date based on recurrence configuration.
 
@@ -185,6 +191,7 @@ class RecurrenceEngine:
         Returns:
             Next due date as datetime (time will be set to start of day)
         """
+        config = normalize_recurrence_config(config)
         recurrence_type = config.get("recurrence_type", "interval")
 
         # Get the appropriate calculator function
@@ -200,6 +207,78 @@ class RecurrenceEngine:
 
         # Convert back to HA-aware datetime at start of day for backward compatibility
         return _as_ha_datetime(datetime.combine(next_due_date, datetime.min.time()))
+
+    def projection_config(self, config: dict[str, Any]) -> dict[str, Any]:
+        """Validate and normalize a copy of the configuration for projection."""
+        try:
+            config = normalize_recurrence_config(config)
+        except ValueError as err:
+            raise InvalidProjectionConfig(
+                "invalid recurrence configuration; edit the chore schedule "
+                "(month/year intervals must be whole numbers)"
+            ) from err
+        # Creation-service limits are narrower than existing UI schedules.
+        validation_config = {**config, CONF_PATTERN_INTERVAL: 1}
+        if not self.validate_recurrence_config(validation_config):
+            raise InvalidProjectionConfig(
+                "invalid recurrence configuration; edit the chore schedule "
+                "(month/year intervals must be whole numbers)"
+            )
+        return config
+
+    def _next_ordinal_projection(
+        self, config: dict[str, Any], due: date, end_date: date
+    ) -> date | None:
+        """Find the next ordinal occurrence before the end or repeated 400-year cycle."""
+        interval = config.get(CONF_PATTERN_INTERVAL, 1)
+        month_index = (due.year - 1) * 12 + due.month - 1
+        end_index = (end_date.year - 1) * 12 + end_date.month - 1
+        visited: set[int] = set()
+        while True:
+            month_index += interval
+            if month_index > end_index or month_index >= 9999 * 12:
+                return None
+            cycle = month_index % 4800
+            if cycle in visited:
+                return None
+            visited.add(cycle)
+            year, month = divmod(month_index, 12)
+            candidate = nth_weekday_of_month(
+                year + 1,
+                month + 1,
+                config[CONF_MONTHLY_WEEKDAY],
+                config[CONF_MONTHLY_ORDINAL],
+            )
+            if candidate is not None:
+                return candidate if candidate < end_date else None
+
+    def iter_due_dates(
+        self, config: dict[str, Any], first_due: date, end_date: date
+    ) -> Iterator[date]:
+        """Expand due dates assuming on-time completion, up to an exclusive end."""
+        config = self.projection_config(config)
+        due_date = first_due
+        while due_date < end_date:
+            yield due_date
+            if due_date + timedelta(days=1) >= end_date:
+                return
+            if (
+                config.get(CONF_RECURRENCE_TYPE) == RECURRENCE_TYPE_MONTHLY
+                and config.get(CONF_MONTHLY_MODE) == MONTHLY_MODE_ORDINAL_WEEKDAY
+            ):
+                next_due = self._next_ordinal_projection(config, due_date, end_date)
+                if next_due is None:
+                    return
+            else:
+                try:
+                    next_due = self.calculate_next_due_date(config, due_date).date()
+                except (ValueError, OverflowError) as err:
+                    raise HomeAssistantError(
+                        "Chore projection exceeds the supported date range"
+                    ) from err
+            if next_due <= due_date:
+                raise HomeAssistantError("Chore recurrence must advance the due date")
+            due_date = next_due
 
     def _calculate_interval(self, config: Dict[str, Any], completion_date: date) -> date:
         """Calculate next due date for interval-based recurrence (completion-based).
@@ -511,7 +590,7 @@ _LOGGER = logging.getLogger(__name__)
 
 CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
 
-PLATFORMS: list[Platform] = [Platform.SENSOR, Platform.BUTTON]
+PLATFORMS: list[Platform] = [Platform.SENSOR, Platform.BUTTON, Platform.CALENDAR]
 
 # Update interval for coordinator
 UPDATE_INTERVAL = timedelta(minutes=15)
@@ -1243,6 +1322,8 @@ async def _complete_chore_handler(
         )
         return
 
+    new_next_due = _calculate_action_next_due(config, completion_date, entity_id)
+
     # Keep a snapshot so accidental double-complete can be undone.
     state["_undo_previous_state"] = {
         key: value for key, value in state.items() if not key.startswith("_undo_")
@@ -1260,9 +1341,7 @@ async def _complete_chore_handler(
     state["_skip_snooze_original_due_date"] = None
     state["original_due_date"] = None
 
-    # Calculate next due date using recurrence engine
-    recurrence_engine = RecurrenceEngine()
-    state["next_due_date"] = recurrence_engine.calculate_next_due_date(config, completion_date)
+    state["next_due_date"] = new_next_due
 
     # Persist state before triggering refresh
     await coordinator.async_save_state()
@@ -1400,6 +1479,7 @@ async def _skip_chore_handler(
     # Skip semantics decision: advance from the current due date (pattern-forward),
     # not from "now".
     current_due = _parse_state_datetime(state.get("next_due_date")) or dt_util.now()
+    new_next_due = _calculate_action_next_due(config, current_due, entity_id)
 
     # Store original due date for potential restore
     state["original_due_date"] = current_due
@@ -1414,9 +1494,7 @@ async def _skip_chore_handler(
     # Update state
     state["status"] = CHORE_STATUS_SKIPPED
 
-    # Calculate next due date from the current due date (not from now)
-    recurrence_engine = RecurrenceEngine()
-    state["next_due_date"] = recurrence_engine.calculate_next_due_date(config, current_due)
+    state["next_due_date"] = new_next_due
 
     # Update coordinator and trigger refresh
     await coordinator.async_save_state()
@@ -1541,6 +1619,18 @@ async def _reassign_chore_handler(
     _LOGGER.info("Chore %s reassigned from %s to %s", entity_id, old_person, person_id)
 
 
+def _calculate_action_next_due(
+    config: dict[str, Any], anchor: datetime, entity_id: str
+) -> datetime:
+    """Calculate an action's due date or report an invalid schedule."""
+    try:
+        return RecurrenceEngine().calculate_next_due_date(config, anchor)
+    except (ValueError, TypeError, OverflowError) as err:
+        raise ServiceValidationError(
+            f"Cannot calculate the next due date for {entity_id}; edit its chore schedule: {err}"
+        ) from err
+
+
 async def _reset_next_due_date_handler(
     hass: HomeAssistant,
     coordinator: ChoreCoordinator,
@@ -1556,11 +1646,17 @@ async def _reset_next_due_date_handler(
 
     last_completed = _parse_state_datetime(state.get("last_completed_date"))
     if last_completed is not None:
-        new_next_due = RecurrenceEngine().calculate_next_due_date(config, last_completed)
+        new_next_due = _calculate_action_next_due(config, last_completed, entity_id)
     else:
-        new_next_due = _calculate_first_occurrence_datetime(
-            config, config.get(CONF_FIRST_OCCURRENCE_DATE)
-        )
+        try:
+            normalized_config = normalize_recurrence_config(config)
+            new_next_due = _calculate_first_occurrence_datetime(
+                normalized_config, normalized_config.get(CONF_FIRST_OCCURRENCE_DATE)
+            )
+        except (ValueError, TypeError, OverflowError) as err:
+            raise ServiceValidationError(
+                f"Cannot reset the due date for {entity_id}; edit its chore schedule: {err}"
+            ) from err
 
     # Reset schedule anchor and clear transient lifecycle state that conflicts
     # with a manual reset operation.

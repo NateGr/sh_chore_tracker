@@ -1,16 +1,24 @@
 """Date calculation utilities for SmartHass Chore Tracker."""
 
 import calendar
+import math
 from datetime import date, datetime, timedelta
 from typing import Any, List, Mapping
 
 from dateutil.relativedelta import relativedelta
 
 from .const import (
+    CONF_INTERVAL_UNIT,
     CONF_MONTHLY_DAY,
     CONF_MONTHLY_MODE,
     CONF_MONTHLY_ORDINAL,
     CONF_MONTHLY_WEEKDAY,
+    CONF_PATTERN_INTERVAL,
+    CONF_RECURRENCE_TYPE,
+    CONF_YEARLY_DAY,
+    CONF_YEARLY_MONTH,
+    INTERVAL_UNIT_MONTHS,
+    INTERVAL_UNIT_YEARS,
     MONTHLY_MODE_DAY_OF_MONTH,
     MONTHLY_MODE_ORDINAL_WEEKDAY,
     MONTHLY_ORDINAL_FIFTH,
@@ -19,7 +27,40 @@ from .const import (
     MONTHLY_ORDINAL_LAST,
     MONTHLY_ORDINAL_SECOND,
     MONTHLY_ORDINAL_THIRD,
+    RECURRENCE_TYPE_INTERVAL,
+    RECURRENCE_TYPE_MONTHLY,
+    RECURRENCE_TYPE_YEARLY,
 )
+
+
+def valid_calendar_interval(config: Mapping[str, Any]) -> bool:
+    """Check that the interval can be used by the selected date arithmetic."""
+    interval = config.get(CONF_PATTERN_INTERVAL, 1)
+    if isinstance(interval, bool) or not isinstance(interval, (int, float)):
+        return False
+    if not math.isfinite(interval) or interval < 1:
+        return False
+    recurrence = config.get(CONF_RECURRENCE_TYPE, RECURRENCE_TYPE_INTERVAL)
+    unit = config.get(CONF_INTERVAL_UNIT, "days")
+    needs_integer = recurrence in {RECURRENCE_TYPE_MONTHLY, RECURRENCE_TYPE_YEARLY} or (
+        recurrence == RECURRENCE_TYPE_INTERVAL
+        and unit in {INTERVAL_UNIT_MONTHS, INTERVAL_UNIT_YEARS}
+    )
+    return not needs_integer or int(interval) == interval
+
+
+def normalize_recurrence_config(config: Mapping[str, Any]) -> dict[str, Any]:
+    """Validate intervals and normalize whole-number selector values on a copy."""
+    if not valid_calendar_interval(config):
+        raise ValueError(
+            "Invalid recurrence interval; month and year intervals must be whole numbers"
+        )
+    normalized = dict(config)
+    for key in (CONF_PATTERN_INTERVAL, CONF_MONTHLY_DAY, CONF_YEARLY_MONTH, CONF_YEARLY_DAY):
+        value = normalized.get(key)
+        if isinstance(value, float) and value.is_integer():
+            normalized[key] = int(value)
+    return normalized
 
 
 class DateCalculator:
@@ -170,11 +211,9 @@ def nth_weekday_of_month(year: int, month: int, weekday_name: str, ordinal: str)
     if weekday is None:
         return None
 
-    matching_days = [
-        day
-        for day in calendar.Calendar(firstweekday=0).itermonthdates(year, month)
-        if day.month == month and day.weekday() == weekday
-    ]
+    first_weekday, days_in_month = calendar.monthrange(year, month)
+    first_match = 1 + (weekday - first_weekday) % 7
+    matching_days = [date(year, month, day) for day in range(first_match, days_in_month + 1, 7)]
 
     ordinal = str(ordinal).lower()
     if ordinal == MONTHLY_ORDINAL_LAST:

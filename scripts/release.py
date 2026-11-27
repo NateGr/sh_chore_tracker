@@ -16,6 +16,10 @@ PRERELEASE_PATTERN = re.compile(
     r"(?P<base>(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)\."
     r"(?:0|[1-9][0-9]*))rc(?P<number>[1-9][0-9]*)"
 )
+BETA_PATTERN = re.compile(
+    r"(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)\."
+    r"(?:0|[1-9][0-9]*)b[1-9][0-9]*"
+)
 
 
 def parse_version(value: str) -> tuple[int, int, int]:
@@ -153,7 +157,8 @@ def check_readiness(root: Path, *, require_integration: bool = False) -> bool:
     for key, value in expected.items():
         if manifest.get(key) != value:
             raise ValueError(f"manifest.{key} must be {value!r}.")
-    parse_release_version(manifest["version"])
+    if not BETA_PATTERN.fullmatch(manifest["version"]):
+        parse_release_version(manifest["version"])
     if "@NateGr" not in manifest.get("codeowners", []):
         raise ValueError("manifest.codeowners must include @NateGr.")
     if not (integration / "brand/icon.png").is_file():

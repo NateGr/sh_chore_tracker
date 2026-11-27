@@ -92,6 +92,10 @@ main; hassfest/HACS updates therefore require awareness beyond SHA pins.
 ## Releasing
 
 Merge any number of normal PRs first. Versions are not bumped in those PRs.
+For a manually tagged feature-branch beta, the manifest may temporarily use
+`X.Y.ZbN`; restore the stable manifest version before merging. The automated
+release workflow supports stable versions and RCs, not beta publication or
+release dry runs while the manifest contains a beta version.
 
 1. Open **Actions > Release > Run workflow**, selecting branch **main**.
 2. Choose **patch** (default), **minor**, or **major**. An optional explicit

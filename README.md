@@ -36,6 +36,7 @@ Requires **Home Assistant 2026.9.0 or newer**.
   Assistant services; restore skipped chores through the restore service.
 - Use chore services and events in automations.
 - Persist chore schedules and lifecycle state across Home Assistant restarts.
+- View actual chore due dates and projected occurrences in an automatic household calendar.
 
 ## Installation
 
@@ -123,6 +124,41 @@ The automatically created household summary sensors are:
 - `sensor.chores_next_due`: signed days until the nearest chore is due. Its
   attributes identify the chore and its due date.
 - `sensor.chores_overdue_count`: number of chores currently overdue.
+
+## Chore Calendar
+
+The integration automatically creates one read-only household calendar, normally
+`calendar.chores`, in the **Overall summary** group. Existing hubs receive it on
+their next load after updating. Select it in Home Assistant's **Calendar** view,
+or add a calendar dashboard card:
+
+```yaml
+type: calendar
+entities:
+  - calendar.chores
+```
+
+Each chore's current due date appears as an all-day event. Further occurrences
+within the date range being viewed are labelled **(projected)** and assume the
+chore is completed on every scheduled due date. Navigating to another month
+generates that month's events; no separate calendar events are stored.
+
+Overdue chores remain on their actual due dates, with hypothetical projections
+continuing from those dates. Completing, snoozing, skipping, restoring, or editing
+a chore updates its calendar dates. Use the existing chore controls for these
+actions; events cannot be edited directly in the calendar.
+
+This is not completion history. Projections are neither recorded completions nor
+committed due dates, and calendar automations can see them too. Keep using chore
+sensors for authoritative due/overdue notifications.
+
+Month and year schedules require whole-number intervals. If an older schedule
+contains a fractional interval, its actual due date remains visible, but its
+projections are omitted and a warning is logged until you edit the schedule.
+
+Adding the configured integration hub creates the calendar; removing the hub
+removes it. Installing integration files alone does not create a calendar.
+Remove the hub before uninstalling the files through HACS.
 
 ## Use Chore Actions
 

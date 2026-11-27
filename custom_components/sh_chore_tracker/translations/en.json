@@ -23,6 +23,11 @@
           "interval_unit": "Interval Unit"
         }
       },
+      "fix_calendar_interval": {
+        "title": "Correct the schedule interval",
+        "description": "Month and year schedules require a whole-number interval. Enter a new interval before continuing.",
+        "data": { "pattern_interval": "Interval" }
+      },
       "weekly_config": {
         "title": "Choose Weekdays",
         "description": "Select the days when this chore is due.",
@@ -61,6 +66,7 @@
     "error": {
       "weekly_days_required": "Select at least one weekday.",
       "invalid_monthly_ordinal": "Choose a valid week of the month.",
+      "invalid_calendar_interval": "Enter a positive interval; month and year schedules require a whole number.",
       "invalid_date": "Enter a valid date.",
       "date_in_past": "The first due date cannot be in the past."
     },
@@ -100,6 +106,11 @@
             "pattern_interval": "Interval",
             "interval_unit": "Interval Unit"
           }
+        },
+        "fix_calendar_interval": {
+          "title": "Correct the schedule interval",
+          "description": "Month and year schedules require a whole-number interval. Enter a new interval before continuing.",
+          "data": { "pattern_interval": "Interval" }
         },
         "weekly_config": {
           "title": "Choose Weekdays",
@@ -142,6 +153,7 @@
       "error": {
         "weekly_days_required": "Select at least one weekday.",
         "invalid_monthly_ordinal": "Choose a valid week of the month.",
+        "invalid_calendar_interval": "Enter a positive interval; month and year schedules require a whole number.",
         "invalid_date": "Enter a valid date.",
         "date_in_past": "The first due date cannot be in the past."
       }
@@ -209,6 +221,9 @@
     }
   },
   "entity": {
+    "calendar": {
+      "schedule": { "name": "Calendar" }
+    },
     "button": {
       "complete": { "name": "Complete" },
       "snooze": { "name": "Snooze" },

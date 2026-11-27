@@ -132,7 +132,7 @@ def test_import_readiness(imported_repository):
     assert check_readiness(imported_repository, require_integration=True)
 
 
-@pytest.mark.parametrize("version", ["0.2.1rc1", "0.2.1rc2"])
+@pytest.mark.parametrize("version", ["0.2.1rc1", "0.2.1rc2", "1.1.0b1"])
 def test_readiness_accepts_prerelease_candidate(imported_repository, version):
     manifest_path = imported_repository / MANIFEST
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
@@ -141,7 +141,7 @@ def test_readiness_accepts_prerelease_candidate(imported_repository, version):
     assert check_readiness(imported_repository, require_integration=True)
 
 
-@pytest.mark.parametrize("version", ["0.2.1rc0", "0.2.1rc01", "0.2.1-rc.1"])
+@pytest.mark.parametrize("version", ["0.2.1rc0", "0.2.1rc01", "0.2.1-rc.1", "1.1.0b0", "1.1.0b01"])
 def test_readiness_rejects_invalid_prerelease(imported_repository, version):
     manifest_path = imported_repository / MANIFEST
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
