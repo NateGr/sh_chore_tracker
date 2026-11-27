@@ -93,6 +93,7 @@ from .date_utils import (
     coerce_date,
     normalize_first_occurrence_date,
     nth_weekday_of_month,
+    valid_calendar_interval,
 )
 
 
@@ -139,6 +140,10 @@ def _calculate_first_occurrence_datetime(
     requested_date = coerce_date(requested_value) or dt_util.now().date()
     normalized_date, _adjusted = normalize_first_occurrence_date(config, requested_date)
     return _as_ha_datetime(datetime.combine(normalized_date, datetime.min.time()))
+
+
+class InvalidProjectionConfig(HomeAssistantError):
+    """A chore schedule cannot be projected without correction."""
 
 
 class RecurrenceEngine:
@@ -202,10 +207,8 @@ class RecurrenceEngine:
         # Convert back to HA-aware datetime at start of day for backward compatibility
         return _as_ha_datetime(datetime.combine(next_due_date, datetime.min.time()))
 
-    def iter_due_dates(
-        self, config: dict[str, Any], first_due: date, end_date: date
-    ) -> Iterator[date]:
-        """Expand due dates assuming on-time completion, up to an exclusive end."""
+    def projection_config(self, config: dict[str, Any]) -> dict[str, Any]:
+        """Validate and normalize a copy of the configuration for projection."""
         # Home Assistant number selectors store whole numbers as floats.
         config = dict(config)
         for key in (
@@ -217,25 +220,67 @@ class RecurrenceEngine:
             value = config.get(key)
             if isinstance(value, float) and value.is_integer():
                 config[key] = int(value)
-        interval = config.get(CONF_PATTERN_INTERVAL, 1)
         # Creation-service limits are narrower than existing UI schedules.
         validation_config = {**config, CONF_PATTERN_INTERVAL: 1}
-        if (
-            not isinstance(interval, (int, float))
-            or not interval >= 1
-            or not self.validate_recurrence_config(validation_config)
+        if not valid_calendar_interval(config) or not self.validate_recurrence_config(
+            validation_config
         ):
-            raise HomeAssistantError("Cannot project chores with invalid recurrence configuration")
+            raise InvalidProjectionConfig(
+                "invalid recurrence configuration; edit the chore schedule "
+                "(month/year intervals must be whole numbers)"
+            )
+        return config
 
+    def _next_ordinal_projection(
+        self, config: dict[str, Any], due: date, end_date: date
+    ) -> date | None:
+        """Find the next ordinal occurrence before the end or repeated 400-year cycle."""
+        interval = config.get(CONF_PATTERN_INTERVAL, 1)
+        month_index = (due.year - 1) * 12 + due.month - 1
+        end_index = (end_date.year - 1) * 12 + end_date.month - 1
+        visited: set[int] = set()
+        while True:
+            month_index += interval
+            if month_index > end_index or month_index >= 9999 * 12:
+                return None
+            cycle = month_index % 4800
+            if cycle in visited:
+                return None
+            visited.add(cycle)
+            year, month = divmod(month_index, 12)
+            candidate = nth_weekday_of_month(
+                year + 1,
+                month + 1,
+                config[CONF_MONTHLY_WEEKDAY],
+                config[CONF_MONTHLY_ORDINAL],
+            )
+            if candidate is not None:
+                return candidate if candidate < end_date else None
+
+    def iter_due_dates(
+        self, config: dict[str, Any], first_due: date, end_date: date
+    ) -> Iterator[date]:
+        """Expand due dates assuming on-time completion, up to an exclusive end."""
+        config = self.projection_config(config)
         due_date = first_due
         while due_date < end_date:
             yield due_date
-            try:
-                next_due = self.calculate_next_due_date(config, due_date).date()
-            except (ValueError, OverflowError) as err:
-                raise HomeAssistantError(
-                    "Chore projection exceeds the supported date range"
-                ) from err
+            if due_date + timedelta(days=1) >= end_date:
+                return
+            if (
+                config.get(CONF_RECURRENCE_TYPE) == RECURRENCE_TYPE_MONTHLY
+                and config.get(CONF_MONTHLY_MODE) == MONTHLY_MODE_ORDINAL_WEEKDAY
+            ):
+                next_due = self._next_ordinal_projection(config, due_date, end_date)
+                if next_due is None:
+                    return
+            else:
+                try:
+                    next_due = self.calculate_next_due_date(config, due_date).date()
+                except (ValueError, OverflowError) as err:
+                    raise HomeAssistantError(
+                        "Chore projection exceeds the supported date range"
+                    ) from err
             if next_due <= due_date:
                 raise HomeAssistantError("Chore recurrence must advance the due date")
             due_date = next_due

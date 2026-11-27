@@ -1,7 +1,9 @@
 """Exercise integration lifecycle through real Home Assistant fixtures."""
 
+import asyncio
+import threading
 from datetime import timedelta
-from unittest.mock import Mock
+from unittest.mock import Mock, patch
 
 import pytest
 from homeassistant import config_entries
@@ -284,3 +286,135 @@ async def test_calendar_state_rolls_at_local_midnight(hass, freezer):
     assert state.state == "off"
     assert state.attributes["message"] == "Dishes (projected)"
     assert state.attributes["start_time"] == "2026-11-04 00:00:00"
+
+
+async def test_calendar_refresh_coalesces_updates_without_publishing_stale_event(hass, freezer):
+    freezer.move_to("2026-11-01T12:00:00+00:00")
+    await create_hub(hass)
+    calendar = hass.data["calendar"].get_entity("calendar.chores")
+    original = calendar._find_next_event
+    loop = asyncio.get_running_loop()
+    entered = asyncio.Event()
+    release = threading.Event()
+    calls = []
+
+    def blocked(chores, today):
+        calls.append(chores[0].due_date)
+        if len(calls) == 1:
+            loop.call_soon_threadsafe(entered.set)
+            if not release.wait(5):
+                raise RuntimeError("Test did not release executor")
+        return original(chores, today)
+
+    with patch.object(calendar, "_find_next_event", new=blocked):
+        try:
+            await hass.services.async_call(
+                DOMAIN,
+                "snooze_chore",
+                {"entity_id": "sensor.chore_dishes", "days": 3},
+                blocking=True,
+            )
+            await asyncio.wait_for(entered.wait(), 5)
+            assert hass.states.get("calendar.chores").state == "unavailable"
+            assert calendar.event is None
+            await hass.services.async_call(
+                DOMAIN,
+                "snooze_chore",
+                {"entity_id": "sensor.chore_dishes", "days": 2},
+                blocking=True,
+            )
+            assert hass.states.get("calendar.chores").state == "unavailable"
+        finally:
+            release.set()
+        await hass.async_block_till_done()
+
+    assert len(calls) == 2
+    assert str(calls[0]) == "2026-11-05"
+    assert str(calls[1]) == "2026-11-07"
+    state = hass.states.get("calendar.chores")
+    assert state.state == "off"
+    assert state.attributes["start_time"] == "2026-11-07 00:00:00"
+
+
+async def test_reconfigure_fractional_interval_to_yearly_requires_correction(hass, freezer):
+    freezer.move_to("2026-11-01T12:00:00+00:00")
+    entry = await create_hub(hass)
+    chore = entry.get_subentries_of_type(SUBENTRY_TYPE_CHORE)[0]
+    hass.config_entries.async_update_subentry(
+        entry, chore, data={**chore.data, "pattern_interval": 2.5}
+    )
+    await hass.async_block_till_done()
+    manager = hass.config_entries.subentries
+    result = await manager.async_init(
+        (entry.entry_id, SUBENTRY_TYPE_CHORE),
+        context={"source": config_entries.SOURCE_RECONFIGURE, "subentry_id": chore.subentry_id},
+    )
+    for data in (
+        {"chore_name": "Dishes", "chore_description": "", "assigned_person": "none"},
+        {"recurrence_type": "yearly"},
+        {"yearly_month": "11", "yearly_day": 2},
+    ):
+        result = await manager.async_configure(result["flow_id"], data)
+    assert result["step_id"] == "fix_calendar_interval"
+    result = await manager.async_configure(result["flow_id"], {"pattern_interval": 2})
+    assert result["step_id"] == "first_occurrence"
+    result = await manager.async_configure(
+        result["flow_id"], {"first_occurrence_date": "2026-11-02"}
+    )
+    assert result["reason"] == "reconfigure_successful"
+    await hass.async_block_till_done()
+    assert entry.subentries[chore.subentry_id].data["pattern_interval"] == 2
+    events = await get_calendar_events(
+        hass, dt_util.start_of_local_day(), dt_util.now() + timedelta(days=800)
+    )
+    assert [(event["start"], event["summary"]) for event in events] == [
+        ("2026-11-02", "Dishes"),
+        ("2028-11-02", "Dishes (projected)"),
+    ]
+
+
+async def test_calendar_refresh_failure_is_logged_and_recovers(hass, freezer, caplog):
+    freezer.move_to("2026-11-01T12:00:00+00:00")
+    entry = await create_hub(hass)
+    calendar = hass.data["calendar"].get_entity("calendar.chores")
+    chore = next(iter(hass.data[DOMAIN][entry.entry_id].chore_data.values()))
+    original_due = chore["state"]["next_due_date"]
+    chore["state"]["next_due_date"] = "invalid"
+    calendar._schedule_refresh()
+    await hass.async_block_till_done()
+    assert hass.states.get("calendar.chores").state == "unavailable"
+    assert "Failed to refresh the household chore calendar" in caplog.text
+    assert "Invalid due date for chore" in caplog.text
+    chore["state"]["next_due_date"] = original_due
+    calendar._schedule_refresh()
+    await hass.async_block_till_done()
+    assert hass.states.get("calendar.chores").state == "off"
+
+
+async def test_calendar_unload_cancels_pending_refresh(hass, freezer):
+    freezer.move_to("2026-11-01T12:00:00+00:00")
+    entry = await create_hub(hass)
+    calendar = hass.data["calendar"].get_entity("calendar.chores")
+    original = calendar._find_next_event
+    loop = asyncio.get_running_loop()
+    entered = asyncio.Event()
+    release = threading.Event()
+
+    def blocked(chores, today):
+        loop.call_soon_threadsafe(entered.set)
+        if not release.wait(5):
+            raise RuntimeError("Test did not release executor")
+        return original(chores, today)
+
+    with patch.object(calendar, "_find_next_event", new=blocked):
+        try:
+            calendar._schedule_refresh()
+            await asyncio.wait_for(entered.wait(), 5)
+            task = calendar._refresh_task
+            assert await hass.config_entries.async_unload(entry.entry_id)
+            assert task.cancelled() or task.cancelling()
+        finally:
+            release.set()
+        await hass.async_block_till_done()
+    assert hass.data["calendar"].get_entity("calendar.chores") is None
+    assert hass.states.get("calendar.chores").state == "unavailable"

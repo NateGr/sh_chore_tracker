@@ -67,6 +67,7 @@ def test_subentry_translations_include_required_flow_sections() -> None:
     [
         ("recurrence_type", ["recurrence_type"]),
         ("interval_config", ["interval_unit"]),
+        ("fix_calendar_interval", []),
         ("weekly_config", ["weekly_days"]),
         ("monthly_config", ["monthly_mode"]),
         ("monthly_day_of_month", []),
@@ -239,6 +240,47 @@ class TestRecurrenceTypeBranching:
             {CONF_RECURRENCE_TYPE: RECURRENCE_TYPE_YEARLY}
         )
         assert result["step_id"] == "yearly_config"
+
+
+@pytest.mark.parametrize("unit", ["months", "years"])
+async def test_interval_flow_rejects_fractional_months_and_years(unit):
+    flow = _make_config_flow()
+    flow._data = {CONF_RECURRENCE_TYPE: RECURRENCE_TYPE_INTERVAL}
+    result = await flow.async_step_interval_config(
+        {CONF_PATTERN_INTERVAL: 2.5, CONF_INTERVAL_UNIT: unit}
+    )
+    assert result["step_id"] == "interval_config"
+    assert result["errors"]["base"] == "invalid_calendar_interval"
+    result = await flow.async_step_interval_config(
+        {CONF_PATTERN_INTERVAL: 2.0, CONF_INTERVAL_UNIT: unit}
+    )
+    assert result["step_id"] == "first_occurrence"
+
+
+@pytest.mark.parametrize("unit", ["days", "weeks"])
+async def test_interval_flow_preserves_fractional_day_and_week_intervals(unit):
+    flow = _make_config_flow()
+    result = await flow.async_step_interval_config(
+        {CONF_PATTERN_INTERVAL: 2.5, CONF_INTERVAL_UNIT: unit}
+    )
+    assert result["step_id"] == "first_occurrence"
+    assert flow._data[CONF_PATTERN_INTERVAL] == 2.5
+
+
+@pytest.mark.parametrize("recurrence", [RECURRENCE_TYPE_MONTHLY, RECURRENCE_TYPE_YEARLY])
+async def test_reconfigure_inherited_fractional_interval_can_be_corrected(monkeypatch, recurrence):
+    flow = _make_subentry_flow(monkeypatch)
+    flow._data = {CONF_RECURRENCE_TYPE: recurrence, CONF_PATTERN_INTERVAL: 2.5}
+    if recurrence == RECURRENCE_TYPE_MONTHLY:
+        result = await flow.async_step_monthly_day_of_month({"monthly_day": 15})
+    else:
+        result = await flow.async_step_yearly_config({"yearly_month": "5", "yearly_day": 15})
+    assert result["step_id"] == "fix_calendar_interval"
+    result = await flow.async_step_fix_calendar_interval({CONF_PATTERN_INTERVAL: 3.5})
+    assert result["errors"]["base"] == "invalid_calendar_interval"
+    result = await flow.async_step_fix_calendar_interval({CONF_PATTERN_INTERVAL: 3.0})
+    assert result["step_id"] == "first_occurrence"
+    assert flow._data[CONF_PATTERN_INTERVAL] == 3.0
 
 
 class TestMonthlySubBranch:

@@ -152,6 +152,10 @@ This is not completion history. Projections are neither recorded completions nor
 committed due dates, and calendar automations can see them too. Keep using chore
 sensors for authoritative due/overdue notifications.
 
+Month and year schedules require whole-number intervals. If an older schedule
+contains a fractional interval, its actual due date remains visible, but its
+projections are omitted and a warning is logged until you edit the schedule.
+
 Adding the configured integration hub creates the calendar; removing the hub
 removes it. Installing integration files alone does not create a calendar.
 Remove the hub before uninstalling the files through HACS.

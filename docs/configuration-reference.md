@@ -111,6 +111,13 @@ There is no fixed count or short projection horizon. Intervals advance from each
 hypothetical completion; weekly, monthly, and yearly rules reuse the existing
 recurrence engine, including end-of-month and leap-day behavior.
 
+Month and year intervals must be whole numbers; day and week intervals may be
+fractional. If an existing schedule has an invalid interval, the integration
+keeps its actual due date on the calendar, omits that chore's projections, and
+logs a warning identifying the chore. Edit its schedule to correct the interval;
+the integration does not silently alter saved schedules. Other chores remain
+visible.
+
 An overdue occurrence stays on its original due date, even outside the current
 view; projected dates continue from that anchor without changing its overdue
 state. Complete and skip advance the actual `next_due_date`, so the next real

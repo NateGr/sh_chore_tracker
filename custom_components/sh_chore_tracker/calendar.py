@@ -3,20 +3,23 @@
 from __future__ import annotations
 
 import asyncio
+import logging
+from copy import deepcopy
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta
 from typing import Any
 
 from homeassistant.components.calendar import CalendarEntity, CalendarEvent
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.core import HomeAssistant
+from homeassistant.core import HomeAssistant, callback
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
+from homeassistant.helpers.event import async_track_time_change
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 from homeassistant.util import dt as dt_util
 
-from . import ChoreCoordinator, RecurrenceEngine, _parse_state_datetime
+from . import ChoreCoordinator, InvalidProjectionConfig, RecurrenceEngine, _parse_state_datetime
 from .const import (
     CONF_ASSIGNED_PERSON,
     CONF_CHORE_DESCRIPTION,
@@ -26,6 +29,8 @@ from .const import (
     SUBENTRY_TYPE_SUMMARY,
 )
 
+_LOGGER = logging.getLogger(__name__)
+
 
 @dataclass(frozen=True)
 class ScheduledChore:
@@ -34,6 +39,7 @@ class ScheduledChore:
     chore_id: str
     config: dict[str, Any]
     due_date: date
+    valid_projection: bool
 
 
 async def async_setup_entry(
@@ -44,8 +50,10 @@ async def async_setup_entry(
     """Attach one calendar to the household's automatic summary group."""
     coordinator: ChoreCoordinator = hass.data[DOMAIN][config_entry.entry_id]
     summary = config_entry.get_subentries_of_type(SUBENTRY_TYPE_SUMMARY)[0]
+    calendar = ChoreCalendar(coordinator)
+    await calendar.async_initialize(hass)
     async_add_entities(
-        [ChoreCalendar(coordinator)],
+        [calendar],
         config_subentry_id=summary.subentry_id,
     )
 
@@ -60,6 +68,13 @@ class ChoreCalendar(CoordinatorEntity[ChoreCoordinator], CalendarEntity):
     def __init__(self, coordinator: ChoreCoordinator) -> None:
         super().__init__(coordinator)
         self._engine = RecurrenceEngine()
+        self._event: CalendarEvent | None = None
+        self._ready = False
+        self._revision = 0
+        self._refresh_task: asyncio.Task[None] | None = None
+        self._invalid_schedules: set[str] = set()
+        self._event_day: date | None = None
+        self._event_chores: list[ScheduledChore] = []
         self._attr_unique_id = f"{HUB_UNIQUE_ID}_calendar"
         self.entity_id = "calendar.chores"
         self._attr_device_info = DeviceInfo(
@@ -71,6 +86,7 @@ class ChoreCalendar(CoordinatorEntity[ChoreCoordinator], CalendarEntity):
 
     def _scheduled_chores(self) -> list[ScheduledChore]:
         chores = []
+        invalid: set[str] = set()
         for chore_id, chore_data in self.coordinator.chore_data.items():
             value = chore_data["state"].get("next_due_date")
             if value is None:
@@ -78,7 +94,22 @@ class ChoreCalendar(CoordinatorEntity[ChoreCoordinator], CalendarEntity):
             due = _parse_state_datetime(value)
             if due is None:
                 raise HomeAssistantError(f"Invalid due date for chore {chore_id}")
-            chores.append(ScheduledChore(chore_id, dict(chore_data["config"]), due.date()))
+            config = deepcopy(chore_data["config"])
+            try:
+                self._engine.projection_config(config)
+                valid_projection = True
+            except InvalidProjectionConfig as err:
+                invalid.add(chore_id)
+                valid_projection = False
+                if chore_id not in self._invalid_schedules:
+                    _LOGGER.warning(
+                        "Cannot project chore %s (%s): %s; its current due date remains visible",
+                        config.get(CONF_CHORE_NAME, chore_id),
+                        chore_id,
+                        err,
+                    )
+            chores.append(ScheduledChore(chore_id, config, due.date(), valid_projection))
+        self._invalid_schedules = invalid
         return chores
 
     def _make_event(self, chore: ScheduledChore, due_date: date) -> CalendarEvent:
@@ -105,18 +136,31 @@ class ChoreCalendar(CoordinatorEntity[ChoreCoordinator], CalendarEntity):
 
     @property
     def event(self) -> CalendarEvent | None:
-        """Return the earliest active or upcoming actual/projected occurrence."""
-        today = dt_util.now().date()
+        """Return the cached earliest active or upcoming occurrence."""
+        return self._event if self._ready else None
+
+    @property
+    def available(self) -> bool:
+        """Avoid presenting a stale event while recomputing."""
+        return self._ready and super().available
+
+    def _find_next_event(self, chores: list[ScheduledChore], today: date) -> CalendarEvent | None:
+        """Calculate from a snapshot in an executor, never in an entity property."""
         candidates = []
-        for chore in self._scheduled_chores():
-            due = next(
-                (
-                    due
-                    for due in self._engine.iter_due_dates(chore.config, chore.due_date, date.max)
-                    if due >= today
-                ),
-                None,
-            )
+        for chore in chores:
+            if not chore.valid_projection:
+                due = chore.due_date if chore.due_date >= today else None
+            else:
+                due = next(
+                    (
+                        due
+                        for due in self._engine.iter_due_dates(
+                            chore.config, chore.due_date, date.max
+                        )
+                        if due >= today
+                    ),
+                    None,
+                )
             if due is not None:
                 candidates.append(self._make_event(chore, due))
         return (
@@ -124,6 +168,78 @@ class ChoreCalendar(CoordinatorEntity[ChoreCoordinator], CalendarEntity):
             if candidates
             else None
         )
+
+    async def async_initialize(self, hass: HomeAssistant) -> None:
+        """Compute the initial event before registering the entity."""
+        while True:
+            today = dt_util.now().date()
+            chores = self._scheduled_chores()
+            event = await hass.async_add_executor_job(self._find_next_event, chores, today)
+            if today == dt_util.now().date() and chores == self._scheduled_chores():
+                self._event = event
+                self._event_day = today
+                self._event_chores = chores
+                self._ready = True
+                return
+
+    async def async_added_to_hass(self) -> None:
+        """Refresh cached events after local midnight and coordinator changes."""
+        await super().async_added_to_hass()
+        self.async_on_remove(
+            async_track_time_change(self.hass, self._handle_midnight, hour=0, minute=0, second=0)
+        )
+        if (
+            self._event_day != dt_util.now().date()
+            or self._event_chores != self._scheduled_chores()
+        ):
+            self._schedule_refresh()
+
+    @callback
+    def _handle_midnight(self, _now: datetime) -> None:
+        self._schedule_refresh()
+
+    @callback
+    def _handle_coordinator_update(self) -> None:
+        self._schedule_refresh()
+
+    @callback
+    def _schedule_refresh(self) -> None:
+        self._revision += 1
+        self._ready = False
+        self.async_write_ha_state()
+        if self._refresh_task is None or self._refresh_task.done():
+            self._refresh_task = self.hass.async_create_task(self._async_refresh_event())
+
+    async def _async_refresh_event(self) -> None:
+        """Coalesce updates; never publish an obsolete snapshot."""
+        while True:
+            revision = self._revision
+            today = dt_util.now().date()
+            try:
+                chores = self._scheduled_chores()
+                event = await self.hass.async_add_executor_job(self._find_next_event, chores, today)
+                latest_chores = self._scheduled_chores()
+            except HomeAssistantError:
+                _LOGGER.exception("Failed to refresh the household chore calendar")
+                return
+            if (
+                revision != self._revision
+                or today != dt_util.now().date()
+                or chores != latest_chores
+            ):
+                continue
+            self._event = event
+            self._event_day = today
+            self._event_chores = chores
+            self._ready = True
+            self.async_write_ha_state()
+            return
+
+    async def async_will_remove_from_hass(self) -> None:
+        """Prevent pending calculations from publishing after removal."""
+        if self._refresh_task is not None:
+            self._refresh_task.cancel()
+        await super().async_will_remove_from_hass()
 
     async def async_get_events(
         self, hass: HomeAssistant, start_date: datetime, end_date: datetime
@@ -140,13 +256,26 @@ class ChoreCalendar(CoordinatorEntity[ChoreCoordinator], CalendarEntity):
         if end_date > dt_util.start_of_local_day(end_date):
             end_day += timedelta(days=1)
 
+        return await hass.async_add_executor_job(
+            self._events_in_range, self._scheduled_chores(), start_date, end_date, end_day
+        )
+
+    def _events_in_range(
+        self,
+        chores: list[ScheduledChore],
+        start_date: datetime,
+        end_date: datetime,
+        end_day: date,
+    ) -> list[CalendarEvent]:
+        """Expand a snapshot away from the Home Assistant event loop."""
         events = []
-        iterations = 0
-        for chore in self._scheduled_chores():
-            for due in self._engine.iter_due_dates(chore.config, chore.due_date, end_day):
-                iterations += 1
-                if iterations % 256 == 0:
-                    await asyncio.sleep(0)
+        for chore in chores:
+            dates = (
+                self._engine.iter_due_dates(chore.config, chore.due_date, end_day)
+                if chore.valid_projection
+                else (chore.due_date,)
+            )
+            for due in dates:
                 if due < start_date.date():
                     continue
                 event = self._make_event(chore, due)

@@ -1,5 +1,7 @@
 """Test on-demand chore calendar expansion without changing chore state."""
 
+import asyncio
+import threading
 from copy import deepcopy
 from datetime import date, datetime, timedelta, timezone
 from unittest.mock import MagicMock, patch
@@ -165,6 +167,144 @@ def test_existing_ui_intervals_are_not_restricted_by_creation_service_limits(
     assert config["pattern_interval"] == interval
 
 
+@pytest.mark.parametrize(
+    "config",
+    [
+        {"recurrence_type": "interval", "interval_unit": "months", "pattern_interval": 2.5},
+        {"recurrence_type": "interval", "interval_unit": "years", "pattern_interval": 2.5},
+        {"recurrence_type": "monthly", "monthly_day": 1, "pattern_interval": 2.5},
+        {"recurrence_type": "yearly", "yearly_month": 1, "yearly_day": 1, "pattern_interval": 2.5},
+    ],
+)
+def test_fractional_month_and_year_intervals_fail_explicitly(config):
+    with pytest.raises(HomeAssistantError, match="whole numbers"):
+        list(RecurrenceEngine().iter_due_dates(config, date(2026, 1, 1), date(2027, 1, 1)))
+
+
+async def test_invalid_chore_retains_actual_event_and_warns_once(hass, caplog):
+    calendar = make_calendar(
+        due=utc(2026, 11, 2),
+        recurrence_type="yearly",
+        pattern_interval=2.5,
+        yearly_month=11,
+        yearly_day=2,
+    )
+    calendar.coordinator.chore_data["valid"] = {
+        "config": {
+            "chore_name": "Laundry",
+            "recurrence_type": "interval",
+            "pattern_interval": 2,
+            "interval_unit": "days",
+        },
+        "state": {"next_due_date": utc(2026, 11, 2)},
+    }
+    before = deepcopy(calendar.coordinator.chore_data)
+    with patch(
+        "custom_components.sh_chore_tracker.calendar.dt_util.now",
+        return_value=utc(2026, 11, 1),
+    ):
+        await calendar.async_initialize(hass)
+        assert calendar.event is not None
+        events = await calendar.async_get_events(hass, utc(2026, 11, 1), utc(2026, 11, 8))
+        await calendar.async_get_events(hass, utc(2026, 11, 1), utc(2026, 11, 8))
+    assert [event.summary for event in events].count("Dishes") == 1
+    assert "Dishes (projected)" not in [event.summary for event in events]
+    assert [event.summary for event in events].count("Laundry (projected)") == 2
+    assert caplog.text.count("Cannot project chore Dishes (dishes)") == 1
+    assert "edit the chore schedule" in caplog.text
+    assert calendar.coordinator.chore_data == before
+
+
+async def test_fifth_weekday_search_stops_at_range_and_cycle(hass):
+    calendar = make_calendar(
+        due=utc(2029, 2, 1),
+        recurrence_type="monthly",
+        pattern_interval=48,
+        monthly_mode="ordinal_weekday",
+        monthly_ordinal="fifth",
+        monthly_weekday="monday",
+    )
+    events = await calendar.async_get_events(hass, utc(2029, 2, 1), utc(2029, 3, 1))
+    assert [(event.start, event.summary) for event in events] == [(date(2029, 2, 1), "Dishes")]
+    assert await calendar.async_get_events(hass, utc(2030, 1, 1), utc(2400, 1, 1)) == []
+    with patch(
+        "custom_components.sh_chore_tracker.calendar.dt_util.now",
+        return_value=utc(2030, 1, 1),
+    ):
+        await calendar.async_initialize(hass)
+        assert calendar.event is None
+
+
+def test_ordinal_fifth_weekday_respects_exclusive_end_and_date_limit():
+    engine = RecurrenceEngine()
+    config = {
+        "recurrence_type": "monthly",
+        "pattern_interval": 1,
+        "monthly_mode": "ordinal_weekday",
+        "monthly_ordinal": "fifth",
+        "monthly_weekday": "monday",
+    }
+    assert list(engine.iter_due_dates(config, date(2026, 3, 30), date(2026, 6, 29))) == [
+        date(2026, 3, 30)
+    ]
+    assert list(engine.iter_due_dates(config, date(2026, 3, 30), date(2026, 6, 30))) == [
+        date(2026, 3, 30),
+        date(2026, 6, 29),
+    ]
+    assert list(engine.iter_due_dates(config, date(9999, 11, 30), date.max)) == [date(9999, 11, 30)]
+
+
+@pytest.mark.parametrize(
+    ("config", "first_due"),
+    [
+        (
+            {"recurrence_type": "interval", "interval_unit": "days", "pattern_interval": 2.5},
+            date(2026, 1, 1),
+        ),
+        (
+            {"recurrence_type": "interval", "interval_unit": "weeks", "pattern_interval": 1.5},
+            date(2026, 1, 1),
+        ),
+        (
+            {"recurrence_type": "interval", "interval_unit": "months", "pattern_interval": 1},
+            date(2026, 1, 31),
+        ),
+        ({"recurrence_type": "weekly", "weekly_days": ["monday", "thursday"]}, date(2026, 1, 1)),
+        (
+            {
+                "recurrence_type": "monthly",
+                "monthly_mode": "ordinal_weekday",
+                "monthly_ordinal": "fifth",
+                "monthly_weekday": "monday",
+            },
+            date(2026, 3, 30),
+        ),
+        ({"recurrence_type": "yearly", "yearly_month": 2, "yearly_day": 29}, date(2024, 2, 29)),
+    ],
+)
+def test_range_projection_matches_chained_completion_semantics(config, first_due):
+    engine = RecurrenceEngine()
+    end = date(2030, 1, 1)
+    expected = []
+    due = first_due
+    while due < end:
+        expected.append(due)
+        due = engine.calculate_next_due_date(config, due).date()
+    assert list(engine.iter_due_dates(config, first_due, end)) == expected
+
+
+async def test_event_property_never_replays_old_schedules(hass):
+    calendar = make_calendar(due=utc(2000, 1, 1), pattern_interval=1)
+    with patch(
+        "custom_components.sh_chore_tracker.calendar.dt_util.now",
+        return_value=utc(2026, 11, 3),
+    ):
+        await calendar.async_initialize(hass)
+        with patch.object(calendar._engine, "iter_due_dates", side_effect=AssertionError("replay")):
+            for _ in range(10):
+                assert calendar.event.start == date(2026, 11, 3)
+
+
 async def test_range_queries_are_complete_read_only_and_label_projections(hass):
     calendar = make_calendar()
     before = deepcopy(calendar.coordinator.chore_data)
@@ -236,6 +376,7 @@ async def test_overdue_seed_stays_anchored_and_current_event_rolls_forward(hass)
         "custom_components.sh_chore_tracker.calendar.dt_util.now",
         return_value=utc(2026, 11, 3, 12),
     ):
+        await calendar.async_initialize(hass)
         assert calendar.event.start == date(2026, 11, 3)
         assert calendar.event.summary == "Dishes (projected)"
         assert calendar.state == "on"
@@ -243,6 +384,7 @@ async def test_overdue_seed_stays_anchored_and_current_event_rolls_forward(hass)
         "custom_components.sh_chore_tracker.calendar.dt_util.now",
         return_value=utc(2026, 11, 4),
     ):
+        await calendar.async_initialize(hass)
         assert calendar.event.start == date(2026, 11, 5)
         assert calendar.state == "off"
     events = await calendar.async_get_events(hass, utc(2026, 11, 1), utc(2026, 11, 8))
@@ -287,14 +429,24 @@ def test_invalid_nonadvancing_and_overflowing_recurrence_errors_are_explicit():
 
 async def test_long_range_yields_without_truncating_or_using_live_mutations(hass):
     calendar = make_calendar(due=utc(2020, 1, 1), pattern_interval=1)
+    original = calendar._events_in_range
+    loop = asyncio.get_running_loop()
+    entered = asyncio.Event()
+    release = threading.Event()
 
-    async def change_schedule(_delay):
+    def blocked(*args):
+        loop.call_soon_threadsafe(entered.set)
+        if not release.wait(5):
+            raise RuntimeError("Test did not release executor")
+        return original(*args)
+
+    with patch.object(calendar, "_events_in_range", new=blocked):
+        task = asyncio.create_task(
+            calendar.async_get_events(hass, utc(2026, 1, 1), utc(2027, 1, 1))
+        )
+        await asyncio.wait_for(entered.wait(), 5)
         calendar.coordinator.chore_data.clear()
-
-    with patch(
-        "custom_components.sh_chore_tracker.calendar.asyncio.sleep", side_effect=change_schedule
-    ) as sleep:
-        events = await calendar.async_get_events(hass, utc(2026, 1, 1), utc(2027, 1, 1))
+        release.set()
+        events = await task
     assert len(events) == 365
     assert events[-1].start == date(2026, 12, 31)
-    assert sleep.await_count > 1
