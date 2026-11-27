@@ -11,7 +11,9 @@ from custom_components.sh_chore_tracker.const import (
     SUBENTRY_TYPE_SUMMARY,
 )
 from custom_components.sh_chore_tracker.sensor import (
+    ChoreCompletionsSensor,
     ChoreEntity,
+    ChoreLastCompletedSensor,
     HubNextDueSensor,
     HubOverdueCountSensor,
     async_setup_entry,
@@ -268,3 +270,43 @@ async def test_setup_registers_each_chore_entity_with_its_subentry() -> None:
     chore_call = add_entities.call_args_list[1]
     assert chore_call.kwargs["config_subentry_id"] == "subentry_1"
     assert chore_call.args[0][0].chore_id == "chore_1"
+    assert [type(entity) for entity in chore_call.args[0][1:]] == [
+        ChoreLastCompletedSensor,
+        ChoreCompletionsSensor,
+    ]
+
+
+def _history_sensor(cls, state: dict):
+    coordinator = MagicMock()
+    coordinator.get_chore_data.return_value = {"state": state, "config": {}}
+    entry = MagicMock()
+    subentry = MagicMock(unique_id="chore_1", title="Dishes", data={"chore_name": "Dishes"})
+    with patch(
+        "custom_components.sh_chore_tracker.sensor.dr.async_get_device_id_by_identifier",
+        return_value="hub_device",
+    ):
+        return cls(coordinator, entry, subentry)
+
+
+def test_last_completed_sensor_reports_timestamp_or_none() -> None:
+    completed = datetime(2026, 10, 6, 9, tzinfo=timezone.utc)
+    sensor = _history_sensor(ChoreLastCompletedSensor, {"last_completed_date": completed})
+    assert sensor.native_value == completed
+    assert sensor.device_class == "timestamp"
+    assert sensor.unique_id == "chore_chore_1_last_completed"
+    assert sensor.device_info["identifiers"] == {(DOMAIN, "chore_1")}
+
+    assert _history_sensor(ChoreLastCompletedSensor, {}).native_value is None
+
+
+def test_completions_sensor_uses_total_state_class() -> None:
+    sensor = _history_sensor(ChoreCompletionsSensor, {"completion_count": 4})
+    assert sensor.native_value == 4
+    assert sensor.state_class == "total"
+    assert _history_sensor(ChoreCompletionsSensor, {}).native_value == 0
+
+
+def test_chore_sensor_excludes_history_attributes_from_recorder() -> None:
+    unrecorded = ChoreEntity._unrecorded_attributes
+    assert {"description", "created_at", "last_completed_date"} <= unrecorded
+    assert "pattern_interval" not in unrecorded

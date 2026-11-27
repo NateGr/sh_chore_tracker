@@ -102,6 +102,7 @@ EVENT_CHORE_RESTORED = "sh_chore_tracker_chore_restored"
 EVENT_CHORE_REASSIGNED = "sh_chore_tracker_chore_reassigned"
 EVENT_CHORE_OVERDUE = "sh_chore_tracker_chore_overdue"
 EVENT_CHORE_SCHEDULE_RESET = "sh_chore_tracker_chore_schedule_reset"
+EVENT_CHORE_CONFIG_CHANGED = "sh_chore_tracker_chore_config_changed"
 
 # Default values
 DEFAULT_SNOOZE_DAYS = 3

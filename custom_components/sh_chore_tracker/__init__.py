@@ -55,6 +55,7 @@ from .const import (
     DOMAIN,
     EVENT_CHORE_COMPLETE_UNDONE,
     EVENT_CHORE_COMPLETED,
+    EVENT_CHORE_CONFIG_CHANGED,
     EVENT_CHORE_OVERDUE,
     EVENT_CHORE_REASSIGNED,
     EVENT_CHORE_RESTORED,
@@ -954,6 +955,7 @@ class ChoreCoordinator(DataUpdateCoordinator):
             "_undo_completed_at",
         }
         changed = False
+        changed |= self._fire_config_changes(stored.get("configs"))
 
         for chore_id, chore_data in self._chores.items():
             state = chore_data["state"]
@@ -975,6 +977,38 @@ class ChoreCoordinator(DataUpdateCoordinator):
 
         if changed:
             await self.async_save_state()
+
+    def _fire_config_changes(self, stored_configs: dict[str, Any] | None) -> bool:
+        """Fire config-changed events for chores whose config differs from the snapshot.
+
+        Editing a chore reloads the entry, so the previous config is only
+        available from the persisted snapshot. Returns True if the snapshot needs saving.
+        """
+        if stored_configs is None:
+            # First run after upgrade: seed the snapshot without firing events.
+            return True
+        changed = set(stored_configs) != set(self._chores)
+        for chore_id, chore_data in self._chores.items():
+            old = stored_configs.get(chore_id)
+            new = chore_data["config"]
+            if old is None or old == new:
+                continue
+            changed = True
+            diff = {
+                key: {"old": old.get(key), "new": new.get(key)}
+                for key in sorted(set(old) | set(new))
+                if old.get(key) != new.get(key)
+            }
+            self.hass.bus.async_fire(
+                EVENT_CHORE_CONFIG_CHANGED,
+                {
+                    "entity_id": self.entity_id_for_chore(chore_id, new),
+                    "entry_id": self.entry.entry_id,
+                    "chore_id": chore_id,
+                    "changed": diff,
+                },
+            )
+        return changed
 
     def _apply_chore_first_occurrence_update(self, chore_data: dict[str, Any]) -> bool:
         """Apply an explicitly changed first occurrence to one chore."""
@@ -1034,7 +1068,14 @@ class ChoreCoordinator(DataUpdateCoordinator):
                 else:
                     serialized_state[key] = value
             serialized_chores[chore_id] = serialized_state
-        await self._store.async_save({"chores": serialized_chores})
+        await self._store.async_save(
+            {
+                "chores": serialized_chores,
+                "configs": {
+                    chore_id: dict(data["config"]) for chore_id, data in self._chores.items()
+                },
+            }
+        )
 
 
 async def async_setup_services(hass: HomeAssistant) -> None:

@@ -125,6 +125,26 @@ The automatically created household summary sensors are:
   attributes identify the chore and its due date.
 - `sensor.chores_overdue_count`: number of chores currently overdue.
 
+### Completion history
+
+Each chore's device also has two history sensors:
+
+- **Last completed** (timestamp): changes only when the chore is completed, so
+  Home Assistant's History panel shows each completion and
+  `states('sensor.<chore>_last_completed')` gives the latest one. Undoing a
+  completion reverts it to the previous value.
+- **Completions** (`state_class: total`): the running completion count. Use a
+  statistics graph card to chart completions per day, week, or month.
+
+The chore sensor's `last_completed_date`, `description`, `recurrence_description`,
+`integration_domain`, and `created_at` attributes are still available live but are
+excluded from the recorder to keep the database small; use the history sensors
+for history.
+
+Changing a chore's configuration fires `sh_chore_tracker_chore_config_changed`
+with a `changed` map of `{field: {old, new}}`. Completion, undo, snooze, skip, and
+config-change events appear in the Logbook.
+
 ## Chore Calendar
 
 The integration automatically creates one read-only household calendar, normally
