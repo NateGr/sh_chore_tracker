@@ -104,8 +104,10 @@ is not subject to this check).
 
 Each chore has a sensor, normally named like `sensor.chore_take_out_trash`.
 Home Assistant entity IDs can be changed, so use the entity ID shown in your
-instance. The sensor state is the signed number of days until its next due
-date:
+instance. The chore sensor is the main entity of its device; newly created
+history sensors and action buttons also use the `chore_` prefix. Existing
+entity IDs are retained. The sensor state is the signed number of days until
+its next due date:
 
 | Sensor state | Meaning |
 |---:|---|
@@ -135,7 +137,7 @@ Each chore's device also has two history sensors:
 
 - **Last completed** (timestamp): changes only when the chore is completed, so
   Home Assistant's History panel shows each completion and
-  `states('sensor.<chore>_last_completed')` gives the latest one. Undoing a
+  `states('sensor.chore_<chore>_last_completed')` gives the latest one. Undoing a
   completion reverts it to the previous value.
 - **Completions** (`state_class: total`): the running completion count. Use a
   statistics graph card to chart completions per day, week, or month.
