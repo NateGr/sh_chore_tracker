@@ -1292,18 +1292,32 @@ async def _handle_service_call(hass: HomeAssistant, call: ServiceCall, handler) 
     if isinstance(entity_ids, str):
         entity_ids = [entity_ids]
 
+    # The chore sensor and its history sensors resolve to one chore; act once per chore.
+    seen: set[tuple[int, int]] = set()
     for entity_id in entity_ids:
-        # Find the coordinator and chore data; validation happens inside _find_chore_data
-        coordinator, chore_data = await _find_chore_data(hass, entity_id)
+        coordinator, chore_data, primary_entity_id = await _find_chore_target(hass, entity_id)
         if not coordinator or not chore_data:
             raise ServiceValidationError(f"Chore entity {entity_id} not found")
 
-        # Call the specific handler
-        await handler(hass, coordinator, chore_data, entity_id, call.data)
+        key = (id(coordinator), id(chore_data))
+        if key in seen:
+            continue
+        seen.add(key)
+
+        await handler(hass, coordinator, chore_data, primary_entity_id or entity_id, call.data)
 
 
 async def _find_chore_data(hass: HomeAssistant, entity_id: str):
-    """Find coordinator and chore data for an entity ID.
+    """Find coordinator and chore data for an entity ID."""
+    coordinator, chore_data, _ = await _find_chore_target(hass, entity_id)
+    return coordinator, chore_data
+
+
+async def _find_chore_target(hass: HomeAssistant, entity_id: str):
+    """Find coordinator, chore data and primary chore sensor ID for an entity ID.
+
+    Any entity on the chore's subentry (the chore sensor or its history sensors)
+    resolves to the same chore and the chore sensor's entity ID.
 
     Uses the HASS entity registry to validate that the entity belongs to this
     integration (entry.platform == DOMAIN) and to map entity_id → config_entry_id,
@@ -1316,23 +1330,26 @@ async def _find_chore_data(hass: HomeAssistant, entity_id: str):
     registry = er.async_get(hass)
     entry = registry.async_get(entity_id)
     if not entry or not entry.config_entry_id:
-        return None, None
+        return None, None, None
 
     # Validate ownership via the integration platform field — the same field
     # that the auto-entities card exposes as the 'integration' filter.
     if entry.platform != DOMAIN:
-        return None, None
+        return None, None, None
 
     coordinator = hass.data.get(DOMAIN, {}).get(entry.config_entry_id)
     if not coordinator:
-        return None, None
+        return None, None, None
 
     if not entry.config_subentry_id:
-        return None, None
+        return None, None, None
     chore_id = coordinator.chore_id_for_subentry(entry.config_subentry_id)
     if chore_id is None:
-        return None, None
-    return coordinator, coordinator.get_chore_data(chore_id)
+        return None, None, None
+    chore_data = coordinator.get_chore_data(chore_id)
+    if chore_data is None:
+        return coordinator, None, None
+    return coordinator, chore_data, coordinator.entity_id_for_chore(chore_id, chore_data["config"])
 
 
 async def _complete_chore_handler(
