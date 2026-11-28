@@ -30,8 +30,22 @@ from .const import (
     CONF_ASSIGNED_PERSON,
     CONF_CHORE_DESCRIPTION,
     CONF_CHORE_NAME,
+    CONF_MONTHLY_DAY,
+    CONF_MONTHLY_MODE,
+    CONF_MONTHLY_ORDINAL,
+    CONF_MONTHLY_WEEKDAY,
+    CONF_WEEKLY_DAYS,
+    CONF_YEARLY_DAY,
+    CONF_YEARLY_MONTH,
     DOMAIN,
     HUB_UNIQUE_ID,
+    MONTHLY_MODE_DAY_OF_MONTH,
+    MONTHLY_MODE_ORDINAL_WEEKDAY,
+    MONTHLY_ORDINAL_FIRST,
+    RECURRENCE_TYPE_INTERVAL,
+    RECURRENCE_TYPE_MONTHLY,
+    RECURRENCE_TYPE_WEEKLY,
+    RECURRENCE_TYPE_YEARLY,
     SUBENTRY_TYPE_CHORE,
     SUBENTRY_TYPE_SUMMARY,
 )
@@ -350,24 +364,26 @@ class ChoreEntity(CoordinatorEntity[ChoreCoordinator], SensorEntity):
 
             # Type-specific recurrence detail so the schedule is recoverable from history
             recurrence_type = attributes["recurrence_type"]
-            if recurrence_type == "interval":
+            if recurrence_type == RECURRENCE_TYPE_INTERVAL:
                 attributes["interval_unit"] = config.get("interval_unit", "days")
-            elif recurrence_type == "weekly":
-                weekly_days = config.get("weekly_days", ["monday"])
+            elif recurrence_type == RECURRENCE_TYPE_WEEKLY:
+                weekly_days = config.get(CONF_WEEKLY_DAYS, ["monday"])
                 if isinstance(weekly_days, str):
                     weekly_days = [d.strip() for d in weekly_days.split(",") if d.strip()]
-                attributes["weekly_days"] = list(weekly_days)
-            elif recurrence_type == "monthly":
-                monthly_mode = config.get("monthly_mode", "day_of_month")
-                attributes["monthly_mode"] = monthly_mode
-                if monthly_mode == "ordinal_weekday":
-                    attributes["monthly_ordinal"] = config.get("monthly_ordinal", "first")
-                    attributes["monthly_weekday"] = config.get("monthly_weekday", "monday")
+                attributes[CONF_WEEKLY_DAYS] = list(weekly_days)
+            elif recurrence_type == RECURRENCE_TYPE_MONTHLY:
+                monthly_mode = config.get(CONF_MONTHLY_MODE, MONTHLY_MODE_DAY_OF_MONTH)
+                attributes[CONF_MONTHLY_MODE] = monthly_mode
+                if monthly_mode == MONTHLY_MODE_ORDINAL_WEEKDAY:
+                    attributes[CONF_MONTHLY_ORDINAL] = config.get(
+                        CONF_MONTHLY_ORDINAL, MONTHLY_ORDINAL_FIRST
+                    )
+                    attributes[CONF_MONTHLY_WEEKDAY] = config.get(CONF_MONTHLY_WEEKDAY, "monday")
                 else:
-                    attributes["monthly_day"] = config.get("monthly_day", 1)
-            elif recurrence_type == "yearly":
-                attributes["yearly_month"] = config.get("yearly_month", 1)
-                attributes["yearly_day"] = config.get("yearly_day", 1)
+                    attributes[CONF_MONTHLY_DAY] = config.get(CONF_MONTHLY_DAY, 1)
+            elif recurrence_type == RECURRENCE_TYPE_YEARLY:
+                attributes[CONF_YEARLY_MONTH] = config.get(CONF_YEARLY_MONTH, 1)
+                attributes[CONF_YEARLY_DAY] = config.get(CONF_YEARLY_DAY, 1)
 
             # Get recurrence description safely
             try:

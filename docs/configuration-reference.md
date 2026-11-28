@@ -276,6 +276,19 @@ condition:
 
 Every chore entity exposes `integration_domain: sh_chore_tracker`. Use this for reliable entity filtering that survives entity renames.
 
+### Recurrence Attributes
+
+The chore sensor records the full recurrence definition so the schedule can be
+reconstructed from history: `recurrence_type` and `pattern_interval`, plus the
+type-specific attributes below.
+
+| `recurrence_type` | Additional attributes |
+|---|---|
+| `interval` | `interval_unit` |
+| `weekly` | `weekly_days` (list) |
+| `monthly` | `monthly_mode`, then `monthly_day` (`day_of_month`) or `monthly_ordinal` and `monthly_weekday` (`ordinal_weekday`) |
+| `yearly` | `yearly_month`, `yearly_day` |
+
 ### Recommended auto-entities Filter
 
 ```yaml

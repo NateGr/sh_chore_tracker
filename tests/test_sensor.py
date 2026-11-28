@@ -341,6 +341,10 @@ def test_chore_sensor_excludes_history_attributes_from_recorder() -> None:
             },
         ),
         (
+            {"recurrence_type": "weekly", "weekly_days": "monday, friday"},
+            {"weekly_days": ["monday", "friday"]},
+        ),
+        (
             {"recurrence_type": "yearly", "yearly_month": 3, "yearly_day": 9},
             {"yearly_month": 3, "yearly_day": 9},
         ),
