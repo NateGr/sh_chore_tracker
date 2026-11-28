@@ -11,6 +11,7 @@ from homeassistant import config_entries
 from homeassistant.config_entries import ConfigEntryState
 from homeassistant.data_entry_flow import FlowResultType
 from homeassistant.exceptions import ServiceValidationError
+from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.storage import Store
 from homeassistant.util import dt as dt_util
@@ -123,6 +124,68 @@ async def test_setup_entities_service_storage_and_reload(hass):
     await hass.async_block_till_done()
     assert hass.states.get("calendar.household") is not None
     assert registry.async_get("calendar.household").unique_id == calendar_entry.unique_id
+
+
+async def test_chore_entity_names_and_existing_ids(hass):
+    entry = await create_hub(hass)
+    chore = entry.get_subentries_of_type(SUBENTRY_TYPE_CHORE)[0]
+    registry = er.async_get(hass)
+    entities = [
+        entity
+        for entity in er.async_entries_for_config_entry(registry, entry.entry_id)
+        if entity.config_subentry_id == chore.subentry_id
+    ]
+    assert {entity.entity_id for entity in entities} == {
+        "sensor.chore_dishes",
+        "sensor.chore_dishes_last_completed",
+        "sensor.chore_dishes_completions",
+        "button.chore_dishes_complete",
+        "button.chore_dishes_snooze",
+        "button.chore_dishes_skip",
+        "button.chore_dishes_reset_next_due_date",
+    }
+    primary = registry.async_get("sensor.chore_dishes")
+    assert primary.unique_id == f"chore_{chore.unique_id}"
+    assert primary.has_entity_name and primary.original_name is None
+    assert {entity.device_id for entity in entities} == {primary.device_id}
+    device = dr.async_get(hass).async_get(primary.device_id)
+    assert device.name == "Chore Dishes"
+    assert hass.states.get(primary.entity_id).attributes["friendly_name"] == device.name
+
+    registry.async_update_entity(
+        "sensor.chore_dishes_completions", new_entity_id="sensor.dishes_completions"
+    )
+    registry.async_update_entity(
+        "button.chore_dishes_complete", new_entity_id="button.my_custom_button"
+    )
+    await hass.async_block_till_done()
+    assert await hass.config_entries.async_reload(entry.entry_id)
+    await hass.async_block_till_done()
+    assert hass.states.get("sensor.dishes_completions") is not None
+    assert hass.states.get("button.my_custom_button") is not None
+    assert registry.async_get("sensor.chore_dishes").unique_id == primary.unique_id
+
+
+async def test_buttons_registered_before_sensors_use_chore_prefix(hass):
+    with patch("custom_components.sh_chore_tracker.sensor.async_setup_entry"):
+        entry = await create_hub(hass)
+    registry = er.async_get(hass)
+    buttons = {
+        entity.entity_id
+        for entity in er.async_entries_for_config_entry(registry, entry.entry_id)
+        if entity.domain == "button"
+    }
+    assert buttons == {
+        "button.chore_dishes_complete",
+        "button.chore_dishes_snooze",
+        "button.chore_dishes_skip",
+        "button.chore_dishes_reset_next_due_date",
+    }
+
+    assert await hass.config_entries.async_reload(entry.entry_id)
+    await hass.async_block_till_done()
+    assert all(hass.states.get(entity_id) is not None for entity_id in buttons)
+    assert hass.states.get("sensor.chore_dishes") is not None
 
 
 async def test_add_and_reconfigure_subentry(hass):

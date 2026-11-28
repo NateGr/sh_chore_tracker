@@ -81,7 +81,7 @@ def test_device_info_groups_chore_under_hub_device() -> None:
 
     assert device_info["identifiers"] == {(DOMAIN, "entry_1")}
     assert device_info["via_device_id"] == "hub_device"
-    assert device_info["name"] == "Test Chore"
+    assert device_info["name"] == "Chore Test Chore"
     assert device_info["manufacturer"] == "SmartHass"
     assert device_info["model"] == "chore"
     assert entity.name is None

@@ -10,6 +10,7 @@ from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from . import ChoreCoordinator
 from .const import (
+    CONF_CHORE_NAME,
     DOMAIN,
     SERVICE_COMPLETE_CHORE,
     SERVICE_RESET_NEXT_DUE_DATE,
@@ -75,7 +76,11 @@ class ChoreActionButton(CoordinatorEntity[ChoreCoordinator], ButtonEntity):
         self._subentry = subentry
         self.chore_id = subentry.unique_id or subentry.subentry_id
         self._attr_unique_id = f"chore_{self.chore_id}_{description.key}"
-        self._attr_device_info = DeviceInfo(identifiers={(DOMAIN, self.chore_id)})
+        chore_name = subentry.data.get(CONF_CHORE_NAME, subentry.title)
+        self._attr_device_info = DeviceInfo(
+            identifiers={(DOMAIN, self.chore_id)},
+            name=f"Chore {chore_name}",
+        )
 
     async def async_press(self) -> None:
         """Run the action against the current registered chore sensor."""

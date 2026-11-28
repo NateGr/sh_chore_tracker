@@ -251,7 +251,7 @@ class ChoreEntity(CoordinatorEntity[ChoreCoordinator], SensorEntity):
                 (DOMAIN, HUB_UNIQUE_ID),
                 config_entry_id=config_entry.entry_id,
             ),
-            name=chore_name,
+            name=f"Chore {chore_name}",
             manufacturer="SmartHass",
             model="chore",
         )
@@ -495,7 +495,7 @@ class ChoreHistorySensor(CoordinatorEntity[ChoreCoordinator], SensorEntity):
                 (DOMAIN, HUB_UNIQUE_ID),
                 config_entry_id=config_entry.entry_id,
             ),
-            name=chore_name,
+            name=f"Chore {chore_name}",
             manufacturer="SmartHass",
             model="chore",
         )
