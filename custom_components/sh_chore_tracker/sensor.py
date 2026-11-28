@@ -348,6 +348,27 @@ class ChoreEntity(CoordinatorEntity[ChoreCoordinator], SensorEntity):
                 "created_at": self._format_datetime_attr(state.get("created_date")),
             }
 
+            # Type-specific recurrence detail so the schedule is recoverable from history
+            recurrence_type = attributes["recurrence_type"]
+            if recurrence_type == "interval":
+                attributes["interval_unit"] = config.get("interval_unit", "days")
+            elif recurrence_type == "weekly":
+                weekly_days = config.get("weekly_days", ["monday"])
+                if isinstance(weekly_days, str):
+                    weekly_days = [d.strip() for d in weekly_days.split(",") if d.strip()]
+                attributes["weekly_days"] = list(weekly_days)
+            elif recurrence_type == "monthly":
+                monthly_mode = config.get("monthly_mode", "day_of_month")
+                attributes["monthly_mode"] = monthly_mode
+                if monthly_mode == "ordinal_weekday":
+                    attributes["monthly_ordinal"] = config.get("monthly_ordinal", "first")
+                    attributes["monthly_weekday"] = config.get("monthly_weekday", "monday")
+                else:
+                    attributes["monthly_day"] = config.get("monthly_day", 1)
+            elif recurrence_type == "yearly":
+                attributes["yearly_month"] = config.get("yearly_month", 1)
+                attributes["yearly_day"] = config.get("yearly_day", 1)
+
             # Get recurrence description safely
             try:
                 from . import RecurrenceEngine

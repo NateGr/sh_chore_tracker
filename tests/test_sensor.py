@@ -310,3 +310,47 @@ def test_chore_sensor_excludes_history_attributes_from_recorder() -> None:
     unrecorded = ChoreEntity._unrecorded_attributes
     assert {"description", "created_at", "last_completed_date"} <= unrecorded
     assert "pattern_interval" not in unrecorded
+
+
+@pytest.mark.parametrize(
+    ("config", "expected"),
+    [
+        (
+            {"recurrence_type": "interval", "interval_unit": "months", "pattern_interval": 2},
+            {"interval_unit": "months"},
+        ),
+        (
+            {"recurrence_type": "weekly", "weekly_days": ["monday", "friday"]},
+            {"weekly_days": ["monday", "friday"]},
+        ),
+        (
+            {"recurrence_type": "monthly", "monthly_mode": "day_of_month", "monthly_day": 15},
+            {"monthly_mode": "day_of_month", "monthly_day": 15},
+        ),
+        (
+            {
+                "recurrence_type": "monthly",
+                "monthly_mode": "ordinal_weekday",
+                "monthly_ordinal": "last",
+                "monthly_weekday": "friday",
+            },
+            {
+                "monthly_mode": "ordinal_weekday",
+                "monthly_ordinal": "last",
+                "monthly_weekday": "friday",
+            },
+        ),
+        (
+            {"recurrence_type": "yearly", "yearly_month": 3, "yearly_day": 9},
+            {"yearly_month": 3, "yearly_day": 9},
+        ),
+    ],
+)
+def test_attributes_include_recurrence_detail(config: dict, expected: dict) -> None:
+    entity = _make_entity(datetime(2026, 10, 6, tzinfo=timezone.utc))
+    entity.coordinator.get_chore_data.return_value["config"].update(config)
+    attributes = entity.extra_state_attributes
+    for key, value in expected.items():
+        assert attributes[key] == value
+    unrecorded = ChoreEntity._unrecorded_attributes
+    assert not set(expected) & unrecorded
