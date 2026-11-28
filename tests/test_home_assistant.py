@@ -166,6 +166,28 @@ async def test_chore_entity_names_and_existing_ids(hass):
     assert registry.async_get("sensor.chore_dishes").unique_id == primary.unique_id
 
 
+async def test_buttons_registered_before_sensors_use_chore_prefix(hass):
+    with patch("custom_components.sh_chore_tracker.sensor.async_setup_entry"):
+        entry = await create_hub(hass)
+    registry = er.async_get(hass)
+    buttons = {
+        entity.entity_id
+        for entity in er.async_entries_for_config_entry(registry, entry.entry_id)
+        if entity.domain == "button"
+    }
+    assert buttons == {
+        "button.chore_dishes_complete",
+        "button.chore_dishes_snooze",
+        "button.chore_dishes_skip",
+        "button.chore_dishes_reset_next_due_date",
+    }
+
+    assert await hass.config_entries.async_reload(entry.entry_id)
+    await hass.async_block_till_done()
+    assert all(hass.states.get(entity_id) is not None for entity_id in buttons)
+    assert hass.states.get("sensor.chore_dishes") is not None
+
+
 async def test_add_and_reconfigure_subentry(hass):
     entry = await create_hub(hass)
     manager = hass.config_entries.subentries

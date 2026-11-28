@@ -58,6 +58,7 @@ async def test_button_calls_existing_action(
     )
     assert button.unique_id == f"chore_chore_1_{description.key}"
     assert button.device_info["identifiers"] == {(DOMAIN, "chore_1")}
+    assert button.device_info["name"] == "Chore Laundry"
 
 
 @pytest.mark.asyncio
