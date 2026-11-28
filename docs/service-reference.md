@@ -443,6 +443,11 @@ Lifecycle events use these exact names and payload keys:
 | `sh_chore_tracker_chore_reassigned` | `entity_id`, `old_person`, `new_person`, `reassign_date` |
 | `sh_chore_tracker_chore_overdue` | `entity_id`, `entry_id`, `chore_id`, `from_status`, `to_status`, `effective_date`, `next_due_date` |
 | `sh_chore_tracker_chore_schedule_reset` | `entity_id`, `anchor_date`, `next_due_date`, `status` |
+| `sh_chore_tracker_chore_config_changed` | `entity_id`, `entry_id`, `chore_id`, `changed` (`{field: {old, new}}`) |
+
+The config-changed event fires when the integration loads and finds a chore's
+configuration differs from the last saved snapshot (editing a chore reloads the
+entry). It does not fire on the first load after upgrading or for new chores.
 
 Create/list do not emit these lifecycle events. An ignored duplicate completion
 does not emit another completion event. Overdue events fire once when a refresh

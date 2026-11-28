@@ -7,7 +7,11 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Any
 
-from homeassistant.components.sensor import SensorEntity, SensorStateClass
+from homeassistant.components.sensor import (
+    SensorDeviceClass,
+    SensorEntity,
+    SensorStateClass,
+)
 from homeassistant.config_entries import ConfigEntry, ConfigSubentry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import device_registry as dr
@@ -64,7 +68,11 @@ async def async_setup_entry(
     )
     for subentry in config_entry.get_subentries_of_type(SUBENTRY_TYPE_CHORE):
         async_add_entities(
-            [ChoreEntity(coordinator, config_entry, subentry)],
+            [
+                ChoreEntity(coordinator, config_entry, subentry),
+                ChoreLastCompletedSensor(coordinator, config_entry, subentry),
+                ChoreCompletionsSensor(coordinator, config_entry, subentry),
+            ],
             config_subentry_id=subentry.subentry_id,
         )
 
@@ -176,6 +184,16 @@ class ChoreEntity(CoordinatorEntity[ChoreCoordinator], SensorEntity):
     _attr_device_class = None
     _attr_native_unit_of_measurement = "d"
     _attr_state_class = SensorStateClass.MEASUREMENT
+    # Static or separately-tracked attributes; history lives in the history sensors.
+    _unrecorded_attributes = frozenset(
+        {
+            "description",
+            "recurrence_description",
+            "integration_domain",
+            "created_at",
+            "last_completed_date",
+        }
+    )
 
     def __init__(
         self,
@@ -414,3 +432,74 @@ class ChoreEntity(CoordinatorEntity[ChoreCoordinator], SensorEntity):
         are handled centrally in ChoreCoordinator._async_update_data.
         """
         await self.coordinator.async_request_refresh()
+
+
+class ChoreHistorySensor(CoordinatorEntity[ChoreCoordinator], SensorEntity):
+    """Base for per-chore history sensors grouped under the chore's device."""
+
+    _attr_has_entity_name = True
+    _suffix = ""
+
+    def __init__(
+        self,
+        coordinator: ChoreCoordinator,
+        config_entry: ConfigEntry,
+        subentry: ConfigSubentry,
+    ) -> None:
+        """Initialize the sensor on the same device as the chore sensor."""
+        super().__init__(coordinator)
+        self.chore_id = subentry.unique_id or subentry.subentry_id
+        chore_name = subentry.data.get(CONF_CHORE_NAME, subentry.title)
+        self._attr_unique_id = f"chore_{self.chore_id}_{self._suffix}"
+        self._attr_device_info = DeviceInfo(
+            identifiers={(DOMAIN, self.chore_id)},
+            via_device_id=dr.async_get_device_id_by_identifier(
+                coordinator.hass,
+                (DOMAIN, HUB_UNIQUE_ID),
+                config_entry_id=config_entry.entry_id,
+            ),
+            name=chore_name,
+            manufacturer="SmartHass",
+            model="chore",
+        )
+
+    def _state(self) -> dict[str, Any]:
+        chore_data = self.coordinator.get_chore_data(self.chore_id)
+        return (chore_data or {}).get("state", {})
+
+
+class ChoreLastCompletedSensor(ChoreHistorySensor):
+    """Timestamp of the chore's last completion; changes only on completion."""
+
+    _suffix = "last_completed"
+    _attr_name = "Last completed"
+    _attr_device_class = SensorDeviceClass.TIMESTAMP
+    _attr_icon = "mdi:check-circle-outline"
+
+    @property
+    def native_value(self) -> datetime | None:
+        """Return the last completion time, or None if never completed."""
+        state = self._state()
+        completed = _parse_state_datetime(
+            state.get("last_completed_date", state.get("last_completed"))
+        )
+        # TIMESTAMP sensors require tz-aware values.
+        if completed is not None and completed.tzinfo is None:
+            completed = completed.replace(tzinfo=dt_util.now().tzinfo)
+        return completed
+
+
+class ChoreCompletionsSensor(ChoreHistorySensor):
+    """Total completion count, suitable for long-term statistics."""
+
+    _suffix = "completions"
+    _attr_name = "Completions"
+    # TOTAL (not TOTAL_INCREASING) so undoing a completion isn't treated as a reset.
+    _attr_state_class = SensorStateClass.TOTAL
+    _attr_icon = "mdi:counter"
+
+    @property
+    def native_value(self) -> int:
+        """Return the number of recorded completions."""
+        state = self._state()
+        return state.get("completion_count", state.get("completed_count", 0))

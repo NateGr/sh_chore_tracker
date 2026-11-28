@@ -25,6 +25,7 @@ from custom_components.sh_chore_tracker.const import (
     CHORE_STATUS_SKIPPED,
     CHORE_STATUS_SNOOZED,
     DOMAIN,
+    EVENT_CHORE_CONFIG_CHANGED,
     EVENT_CHORE_OVERDUE,
     HUB_UNIQUE_ID,
     MONTHLY_MODE_ORDINAL_WEEKDAY,
@@ -464,6 +465,56 @@ async def test_existing_v3_hub_preserves_identity_and_state_across_reload():
     hass.config_entries.async_update_entry.assert_not_called()
     hass.config_entries.async_add_subentry.assert_not_called()
     hass.config_entries.async_remove.assert_not_called()
+
+
+@pytest.mark.parametrize(
+    ("stored_configs", "expected_changed", "fires"),
+    [
+        pytest.param(None, True, False, id="first-run-after-upgrade-is-silent"),
+        pytest.param(
+            {"c1": {"chore_name": "Dishes", "pattern_interval": 7}}, False, False, id="unchanged"
+        ),
+        pytest.param(
+            {"c1": {"chore_name": "Dishes", "pattern_interval": 3}}, True, True, id="changed"
+        ),
+    ],
+)
+def test_config_changed_event_from_snapshot(stored_configs, expected_changed, fires):
+    coordinator = _make_coordinator_for_update({})
+    coordinator.hass = Mock()
+    coordinator.entry = Mock(entry_id="hub")
+    coordinator._subentry_to_chore = {}
+    coordinator._chores = {"c1": {"config": {"chore_name": "Dishes", "pattern_interval": 7}}}
+
+    assert coordinator._fire_config_changes(stored_configs) is expected_changed
+
+    if not fires:
+        coordinator.hass.bus.async_fire.assert_not_called()
+        return
+    event_type, payload = coordinator.hass.bus.async_fire.call_args.args
+    assert event_type == EVENT_CHORE_CONFIG_CHANGED
+    assert payload["chore_id"] == "c1"
+    assert payload["changed"] == {"pattern_interval": {"old": 3, "new": 7}}
+
+
+@pytest.mark.asyncio
+async def test_runtime_save_keeps_config_baseline_until_reload_compares():
+    hass = Mock()
+    entry = Mock(entry_id="hub", version=3, data={"is_hub_entry": True})
+    subentry = Mock(
+        subentry_id="s1", unique_id="c1", data={"chore_name": "Dishes", "assigned_person": "a"}
+    )
+    entry.get_subentries_of_type.return_value = [subentry]
+    store = Mock(async_load=AsyncMock(return_value={}), async_save=AsyncMock())
+    with patch("custom_components.sh_chore_tracker.Store", return_value=store):
+        coordinator = ChoreCoordinator(hass, entry)
+
+    # Reassignment updates the live config; a later state save must not advance the baseline.
+    coordinator._chores["c1"]["config"]["assigned_person"] = "b"
+    await coordinator.async_save_state()
+
+    saved = store.async_save.call_args.args[0]
+    assert saved["configs"]["c1"]["assigned_person"] == "a"
 
 
 def _make_coordinator_for_update(state: dict) -> ChoreCoordinator:

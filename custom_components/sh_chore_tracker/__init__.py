@@ -55,6 +55,7 @@ from .const import (
     DOMAIN,
     EVENT_CHORE_COMPLETE_UNDONE,
     EVENT_CHORE_COMPLETED,
+    EVENT_CHORE_CONFIG_CHANGED,
     EVENT_CHORE_OVERDUE,
     EVENT_CHORE_REASSIGNED,
     EVENT_CHORE_RESTORED,
@@ -780,6 +781,11 @@ class ChoreCoordinator(DataUpdateCoordinator):
             hass, 1, f"sh_chore_tracker_hub_{entry.entry_id}"
         )
         self._initialize_chore_data()
+        # Config snapshot used to detect edits across reloads. It only advances after
+        # a load has compared it, so runtime state saves can't hide a pending change.
+        self._config_baseline: dict[str, dict[str, Any]] = {
+            chore_id: dict(data["config"]) for chore_id, data in self._chores.items()
+        }
 
     def _initialize_chore_data(self):
         """Initialize one config/state record for each chore subentry."""
@@ -954,6 +960,7 @@ class ChoreCoordinator(DataUpdateCoordinator):
             "_undo_completed_at",
         }
         changed = False
+        changed |= self._fire_config_changes(stored.get("configs"))
 
         for chore_id, chore_data in self._chores.items():
             state = chore_data["state"]
@@ -975,6 +982,38 @@ class ChoreCoordinator(DataUpdateCoordinator):
 
         if changed:
             await self.async_save_state()
+
+    def _fire_config_changes(self, stored_configs: dict[str, Any] | None) -> bool:
+        """Fire config-changed events for chores whose config differs from the snapshot.
+
+        Editing a chore reloads the entry, so the previous config is only
+        available from the persisted snapshot. Returns True if the snapshot needs saving.
+        """
+        if stored_configs is None:
+            # First run after upgrade: seed the snapshot without firing events.
+            return True
+        changed = set(stored_configs) != set(self._chores)
+        for chore_id, chore_data in self._chores.items():
+            old = stored_configs.get(chore_id)
+            new = chore_data["config"]
+            if old is None or old == new:
+                continue
+            changed = True
+            diff = {
+                key: {"old": old.get(key), "new": new.get(key)}
+                for key in sorted(set(old) | set(new))
+                if old.get(key) != new.get(key)
+            }
+            self.hass.bus.async_fire(
+                EVENT_CHORE_CONFIG_CHANGED,
+                {
+                    "entity_id": self.entity_id_for_chore(chore_id, new),
+                    "entry_id": self.entry.entry_id,
+                    "chore_id": chore_id,
+                    "changed": diff,
+                },
+            )
+        return changed
 
     def _apply_chore_first_occurrence_update(self, chore_data: dict[str, Any]) -> bool:
         """Apply an explicitly changed first occurrence to one chore."""
@@ -1034,7 +1073,12 @@ class ChoreCoordinator(DataUpdateCoordinator):
                 else:
                     serialized_state[key] = value
             serialized_chores[chore_id] = serialized_state
-        await self._store.async_save({"chores": serialized_chores})
+        await self._store.async_save(
+            {
+                "chores": serialized_chores,
+                "configs": self._config_baseline,
+            }
+        )
 
 
 async def async_setup_services(hass: HomeAssistant) -> None:
@@ -1248,18 +1292,32 @@ async def _handle_service_call(hass: HomeAssistant, call: ServiceCall, handler) 
     if isinstance(entity_ids, str):
         entity_ids = [entity_ids]
 
+    # The chore sensor and its history sensors resolve to one chore; act once per chore.
+    seen: set[tuple[int, int]] = set()
     for entity_id in entity_ids:
-        # Find the coordinator and chore data; validation happens inside _find_chore_data
-        coordinator, chore_data = await _find_chore_data(hass, entity_id)
+        coordinator, chore_data, primary_entity_id = await _find_chore_target(hass, entity_id)
         if not coordinator or not chore_data:
             raise ServiceValidationError(f"Chore entity {entity_id} not found")
 
-        # Call the specific handler
-        await handler(hass, coordinator, chore_data, entity_id, call.data)
+        key = (id(coordinator), id(chore_data))
+        if key in seen:
+            continue
+        seen.add(key)
+
+        await handler(hass, coordinator, chore_data, primary_entity_id or entity_id, call.data)
 
 
 async def _find_chore_data(hass: HomeAssistant, entity_id: str):
-    """Find coordinator and chore data for an entity ID.
+    """Find coordinator and chore data for an entity ID."""
+    coordinator, chore_data, _ = await _find_chore_target(hass, entity_id)
+    return coordinator, chore_data
+
+
+async def _find_chore_target(hass: HomeAssistant, entity_id: str):
+    """Find coordinator, chore data and primary chore sensor ID for an entity ID.
+
+    Any entity on the chore's subentry (the chore sensor or its history sensors)
+    resolves to the same chore and the chore sensor's entity ID.
 
     Uses the HASS entity registry to validate that the entity belongs to this
     integration (entry.platform == DOMAIN) and to map entity_id → config_entry_id,
@@ -1272,23 +1330,26 @@ async def _find_chore_data(hass: HomeAssistant, entity_id: str):
     registry = er.async_get(hass)
     entry = registry.async_get(entity_id)
     if not entry or not entry.config_entry_id:
-        return None, None
+        return None, None, None
 
     # Validate ownership via the integration platform field — the same field
     # that the auto-entities card exposes as the 'integration' filter.
     if entry.platform != DOMAIN:
-        return None, None
+        return None, None, None
 
     coordinator = hass.data.get(DOMAIN, {}).get(entry.config_entry_id)
     if not coordinator:
-        return None, None
+        return None, None, None
 
     if not entry.config_subentry_id:
-        return None, None
+        return None, None, None
     chore_id = coordinator.chore_id_for_subentry(entry.config_subentry_id)
     if chore_id is None:
-        return None, None
-    return coordinator, coordinator.get_chore_data(chore_id)
+        return None, None, None
+    chore_data = coordinator.get_chore_data(chore_id)
+    if chore_data is None:
+        return coordinator, None, None
+    return coordinator, chore_data, coordinator.entity_id_for_chore(chore_id, chore_data["config"])
 
 
 async def _complete_chore_handler(

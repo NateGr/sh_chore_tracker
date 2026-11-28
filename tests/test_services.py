@@ -395,8 +395,10 @@ async def test_registered_actions_dispatch_validated_bulk_input(
         data["person_id"] = "person.alice"
     with (
         patch(
-            "custom_components.sh_chore_tracker._find_chore_data",
-            AsyncMock(return_value=(coordinator, coordinator._chore_data)),
+            "custom_components.sh_chore_tracker._find_chore_target",
+            AsyncMock(
+                side_effect=lambda _hass, entity_id: (coordinator, {"id": entity_id}, entity_id)
+            ),
         ),
         patch(f"custom_components.sh_chore_tracker.{handler_name}", AsyncMock()) as handler,
     ):
@@ -913,6 +915,7 @@ class TestRestoreChoreHandler:
         restored_at = datetime.fromisoformat("2026-10-29T00:05:00+00:00")
         original_due = skipped_at.replace(hour=0, minute=0)
         coordinator = ChoreCoordinator.__new__(ChoreCoordinator)
+        coordinator._config_baseline = {}
         coordinator.hass = MagicMock()
         coordinator.entry = MagicMock(entry_id="hub_1")
         coordinator._chores = {
@@ -1081,6 +1084,7 @@ class TestSkipChoreHandler:
         now = datetime.fromisoformat("2026-10-29T12:00:00+00:00")
         original_due = now - timedelta(days=2)
         coordinator = ChoreCoordinator.__new__(ChoreCoordinator)
+        coordinator._config_baseline = {}
         coordinator.hass = MagicMock()
         coordinator.entry = MagicMock(entry_id="hub_1")
         coordinator._chores = {
@@ -1520,12 +1524,38 @@ class TestHandleServiceCallIntegrationValidation:
         handler = AsyncMock()
 
         with patch(
-            "custom_components.sh_chore_tracker._find_chore_data",
-            AsyncMock(return_value=(coordinator, coordinator._chore_data)),
+            "custom_components.sh_chore_tracker._find_chore_target",
+            AsyncMock(
+                return_value=(coordinator, coordinator._chore_data, "sensor.my_renamed_chore")
+            ),
         ):
             await _handle_service_call(hass, call, handler)
 
         handler.assert_awaited_once()
+
+    @pytest.mark.asyncio
+    async def test_targets_resolving_to_one_chore_run_once_with_primary_entity_id(self):
+        """The chore sensor and its history sensors act on the chore only once."""
+        hass = MagicMock()
+        coordinator = _make_coordinator(hass)
+        call = MagicMock()
+        call.data = {
+            "entity_id": [
+                "sensor.chore_dishes_last_completed",
+                "sensor.chore_dishes",
+                "sensor.chore_dishes_completions",
+            ]
+        }
+        handler = AsyncMock()
+
+        with patch(
+            "custom_components.sh_chore_tracker._find_chore_target",
+            AsyncMock(return_value=(coordinator, coordinator._chore_data, "sensor.chore_dishes")),
+        ):
+            await _handle_service_call(hass, call, handler)
+
+        handler.assert_awaited_once()
+        assert handler.await_args.args[3] == "sensor.chore_dishes"
 
     @pytest.mark.asyncio
     async def test_rejects_entity_from_different_integration(self):
@@ -1540,8 +1570,8 @@ class TestHandleServiceCallIntegrationValidation:
         handler = AsyncMock()
 
         with patch(
-            "custom_components.sh_chore_tracker._find_chore_data",
-            AsyncMock(return_value=(None, None)),
+            "custom_components.sh_chore_tracker._find_chore_target",
+            AsyncMock(return_value=(None, None, None)),
         ):
             with pytest.raises(ServiceValidationError, match="not found"):
                 await _handle_service_call(hass, call, handler)
