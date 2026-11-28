@@ -117,7 +117,11 @@ Use the sensor's `status` attribute for lifecycle status rather than expecting a
 text state. Common values include `pending`, `due`, `overdue`, `snoozed`,
 `skipped`, and `complete`. Other useful attributes include `next_due_date`,
 `days_until_due`, `completion_count`, `assigned_person`, and
-`recurrence_description`.
+`recurrence_description`. The recurrence is also exposed as recorded attributes:
+`recurrence_type` and `pattern_interval`, plus `interval_unit` (interval),
+`weekly_days` (weekly), `monthly_mode` with `monthly_day` or
+`monthly_ordinal`/`monthly_weekday` (monthly), or `yearly_month`/`yearly_day`
+(yearly).
 
 The automatically created household summary sensors are:
 
